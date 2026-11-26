@@ -71,16 +71,16 @@ export default function App() {
       e.setKeepOut([...document.querySelectorAll(sel)].map(el => el.getBoundingClientRect()).filter(r => r.width > 0).map(r => ({ x: r.left - c.left - 6, y: r.top - c.top - 6, w: r.width + 12, h: r.height + 12 }))); }, 250);
     return () => clearInterval(t);
   }, []);
-  const impSeq = useRef(0);                                 // only the latest run may set the impact tiles
+  const impSeq = useRef(0), pidNow = useRef(null);         // impact replies are shown only if they match the CURRENT preset / run
   const placeCb = useRef(() => {});
   placeCb.current = (la, lo) => { if (placeFor === 'event') setEvCenter([la, lo]); if (placeFor === 'shock') setShCenter([la, lo]); setPlaceFor(null); };
   // ---- start preset -> plain forecast (live /run with nothing added) ----
   useEffect(() => {
-    if (!pid) return; setPrime(null); setRun(null); setDay(0); setImpPlain(null); setImpRun(null); setImpSel(null);
+    if (!pid) return; pidNow.current = pid; impSeq.current++; setPrime(null); setRun(null); setDay(0); setImpPlain(null); setImpRun(null); setImpSel(null);
     Promise.all([api.preset(pid), api.run(pid, null)]).then(([p, r]) => {
       setPrime({ frames: [toFrame(p.init_states[2]), ...r.prime.map(toFrame)], meta: p, normal: cloudNormal(p.init_states) }); setPrimeMs(r.timing.server_ms_prime);
-      return api.impact({ preset_id: pid }).then(x => { if (x.preset_id === pid) setImpPlain(x); });
-    }).catch(x => setErr('Forecast failed: ' + x.message));
+      return api.impact({ preset_id: pid }).then(x => { if (x.preset_id === pidNow.current) setImpPlain(x); });
+    }).catch(x => { if (pid === pidNow.current) setErr('Forecast failed: ' + x.message); });
   }, [pid]);
 
   const ev = events.find(e => e.id === evId), sh = SHOCKS.find(s => s.id === shId), cv = CVARS.find(c => c.id === cvar);
@@ -147,7 +147,7 @@ export default function App() {
       if (r.tiles.length) { setOn(o => { const n = { ...o }; r.tiles.forEach(t => (n[t] = true)); return n; }); setFocus(r.tiles[0]); }
       const done = await api.stream(body, m => { if (m.type === 'day') { r.frames[m.day] = toFrame(m.branch); r.outcome[m.day] = m.outcome; setRun({ ...r, frames: [...r.frames], outcome: [...r.outcome] }); } });
       setRun({ ...r, frames: [...r.frames], outcome: [...r.outcome], metrics: done.event_metrics, fade: done.fade, ms: done.timing.server_ms_branch });
-      api.impact(body).then(x => { if (seq === impSeq.current) setImpRun(x); }).catch(x => setErr('Impacts failed: ' + x.message));
+      api.impact(body).then(x => { if (seq === impSeq.current && x.preset_id === pidNow.current) setImpRun(x); }).catch(x => { if (seq === impSeq.current) setErr('Impacts failed: ' + x.message); });
     } catch (x) { setErr('Run failed: ' + x.message); } finally { setBusy(false); }
   }
   const backToEarth = () => { impSeq.current++; setRun(null); setImpRun(null); setPanel(null); setPlaceFor(null); setDay(0); };
