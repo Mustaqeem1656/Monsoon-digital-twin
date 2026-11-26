@@ -436,7 +436,7 @@ function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
               <button type="button" aria-expanded={why === t.id} onClick={e => { e.stopPropagation(); setWhy(why === t.id ? null : t.id); }} style={{ ...btn, minHeight: 22, padding: '0 8px', fontSize: 10, border: '1px solid var(--accent-edge)', background: 'transparent' }}>Why? {why === t.id ? '▴' : '▾'}</button></span>
           </> : <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Off season (Jun–Sep only)</span>}
         </div>
-        {why === t.id && t.active && <div role="region" aria-label={t.name + ' explanation'} data-testid={'why-' + t.id} className="glass" style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', width: 260, padding: 12, borderRadius: 12, zIndex: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {why === t.id && t.active && <div role="region" aria-label={t.name + ' explanation'} data-testid={'why-' + t.id} className="glass" style={{ position: 'absolute', bottom: 'calc(100% + 42px)', left: '50%', transform: 'translateX(-50%)', width: 260, padding: 12, borderRadius: 12, zIndex: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <Spark t={t} day={day} />
           <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{imp.has_change ? 'solid: with the change · dashed: plain forecast' : 'daily value, day 0 (start) to day 10'}</span>
           {t.explanation.map((x, i) => <p key={i} style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: 'var(--text)' }}>{x}</p>)}
