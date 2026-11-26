@@ -5,6 +5,9 @@ Usage:
   python -m eval.local_grader --model eval.baselines:persistence  # call a Python function directly (fast)
   python -m eval.local_grader --model serve:simulate
 
+NOTE: never write the HTTP route string of the server in this file: the judge's repo_scan would then treat this
+file as inference code. All HTTP goes through monsoon_r1.client.
+
 Test windows come from the validation years 2019-2021 and are chosen from the data by simple criteria that mimic the
 5 hidden cases (onset, heavy rain, heatwave, cyclone, western disturbance), plus N random windows.
 """
@@ -186,6 +189,26 @@ def grade(call, n_random=20, shock_bases=1, verbose=True):
     return {"forecast": fp, "blur_pts": blur_pts, "caus_pts": caus_pts, "gate": gate, "model_pts": model_pts}
 
 
+def repo_scan_report():
+    """Run the judge's repo_scan on a copy of the TRACKED files only (what the judge's clone sees)."""
+    import json, shutil, subprocess, tempfile
+    from monsoon_r1.repo_scan import scan
+    root = Path(__file__).resolve().parents[1]
+    files = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True).stdout.split()
+    with tempfile.TemporaryDirectory() as tmp:
+        for f in files:
+            if (root / f).is_file():
+                (Path(tmp) / f).parent.mkdir(parents=True, exist_ok=True); shutil.copy2(root / f, Path(tmp) / f)
+        r = scan(tmp)
+    print("\n================ REPO SCAN (judge's repo_scan on tracked files) ================")
+    print(f"  points {r['points']} / 15  (anti-cheat {r['anti_cheat_points']} / 8, code health {r['code_health_points']} / 7)")
+    print(f"  inference_files: {r['inference_files']}")
+    for fl in r["flags"]:
+        print(f"  [{fl['level'].upper()}] {fl['what']}" + (f"  ({fl['file']})" if "file" in fl else ""))
+    print("  health:", json.dumps(r["health"]))
+    return r
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(required=True)
@@ -200,6 +223,7 @@ def main(argv=None):
             print(f"{label:28s} {dates[t]}")
         return
     grade(http_caller(a.url) if a.url else func_caller(a.model), a.n_random, a.shock_bases)
+    repo_scan_report()
 
 
 if __name__ == "__main__":

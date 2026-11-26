@@ -18,7 +18,7 @@ A fast, physics-aware digital twin of India's daily weather:
 - Allowed libs at judging: torch (CPU), numpy, scipy, pandas, xarray, scikit-learn, lightgbm, onnxruntime, fastapi, flask, uvicorn, gunicorn. Anything else must be vendored in the repo.
 - POST /health → {"status":"ready","model_name":...}; grader polls up to 120 s (do all warm-up there).
 - POST /simulate: {"init_states":[3,6,32,36], "doy_sincos":[sin,cos] for the LAST input day, "steps":10, "perturbation": null | [6,32,36] physical delta added to init_states[-1]} → {"rollout":[steps,6,32,36], "inference_ms":float}. Plain nested JSON lists, physical units, finite floats only.
-- Each 10-step call must finish < 5.0 s wall time. The starter server already takes ~2.2 s on JSON alone → JSON encode/decode must be optimized (avoid FastAPI's jsonable_encoder; build the response fast).
+- Each 10-step call must finish < 5.0 s wall time. Local HTTP calls to the starter server measured ~0.2–0.3 s on the laptop; the judge box may be slower, so keep the JSON encode/decode path fast anyway (avoid FastAPI's jsonable_encoder; build the response fast).
 - 8 hidden calls: 5 real windows after 2023-01-10 (monsoon onset, heavy rain, heatwave, cyclone, western disturbance) + 3 shocks (warm_ocean: +3 K t2m and +15% tcwv in Bay of Bengal box lat 8–20 lon 82–94; monsoon_stall: −40% u10/v10 in Arabian Sea box lat 8–20 lon 65–75; null: zeros must give output identical to no-perturbation within 1e-3 std → model must be deterministic).
 - Scoring: forecast skill 45 (lat-weighted RMSE skill vs the better of persistence and climatology at days 1, 4, 8, all channels; full marks at skill 0.12) + heavy-rain CSI at 10 mm/day (15). Dynamics 25: anti-blur (day-8 spatial variance 40–250% of real, per channel) + shock causality (day-1 ≥60% response energy within 3 cells of the box; spreads outward days 4–8, never faster than 8 cells/day; never >5 std).
 - Hard gate: beat persistence at day 4; valid on all 8 (no NaN/Inf, rain ≥ 0, t2m in [233.15, 333.15] K); localized non-zero response to ≥1 shock.
@@ -32,5 +32,5 @@ A fast, physics-aware digital twin of India's daily weather:
 ## Working rules
 - The user does not write code; explain each step briefly in plain language (what it does and why) so he understands the system.
 - Work layer by layer. After each layer works, run its check, then `git add` + `git commit` with a clear message, and `git push`.
-- Never commit `data/*.nc` or `.venv`. Never hardcode dates or ship past-weather data in the repo.
+- Never commit `data/*.nc` or `.venv`. All .npy/.npz caches go in git-ignored `cache/` (repo_scan flags arrays with >400 days of 32x36 grids as a weather archive). Never write the route string "/simulate" outside serve.py — repo_scan treats any such file (and its imports) as inference code; eval uses monsoon_r1.client. Never hardcode dates or ship past-weather data in the repo.
 - Validation split: train 2005–2018, validate 2019–2021. Report every result against persistence and climatology.

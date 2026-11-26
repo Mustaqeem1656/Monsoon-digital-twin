@@ -20,6 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_NC = ROOT / "data" / "india_climate_train.nc"
 TRAIN_YEARS = range(2005, 2019)
 VAL_YEARS = range(2019, 2022)
+REF_YEAR = 2001                      # a non-leap year, used only to turn day-of-year into a month/day
+CACHE_DIR = ROOT / "cache"          # git-ignored: every .npy/.npz cache goes here, NEVER elsewhere in the repo
 
 
 @lru_cache(maxsize=1)
@@ -45,9 +47,14 @@ def _yyyymmdd(d: dt.date) -> int:
 @lru_cache(maxsize=1)
 def train_climatology() -> np.ndarray:
     """[366,6,32,36] calendar-day climatology from the training years only."""
+    f = CACHE_DIR / "train_climatology.npy"
+    if f.exists():
+        return np.load(f)
     data, dates, _ = load_data()
     idx = [i for i, d in enumerate(dates) if d.year in TRAIN_YEARS]
-    return KS.climatology(data[idx], np.array([_yyyymmdd(dates[i]) for i in idx]))
+    clim = KS.climatology(data[idx], np.array([_yyyymmdd(dates[i]) for i in idx]))
+    CACHE_DIR.mkdir(exist_ok=True); np.save(f, clim)
+    return clim
 
 
 def doy_from_sincos(doy_sincos) -> int:
@@ -68,5 +75,5 @@ def climatology(init_states, doy_sincos, steps, perturbation):
     """Climatology for the `steps` days after the last input day. Ignores the shock (climatology has no memory)."""
     clim = train_climatology()
     doy = doy_from_sincos(doy_sincos)
-    base = dt.date(2001, 1, 1) + dt.timedelta(days=doy - 1)        # non-leap reference year
+    base = dt.date(REF_YEAR, 1, 1) + dt.timedelta(days=doy - 1)    # any non-leap reference year
     return np.stack([KS.clim_for(clim, base + dt.timedelta(days=k + 1)) for k in range(steps)]).astype("f4")
