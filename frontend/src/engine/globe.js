@@ -133,7 +133,11 @@ export class GlobeEngine {
   /** Sky clock. mode 'noon'|'dusk'|'night': the scenario date (start preset day + timeline day) at that IST time;
    *  'today': today's real sky, ticking. The weather never follows this clock; it is decoration and lighting only. */
   setSky({ mode, dateIso, day }) { const o = this.sky0, changed = mode !== o.mode || dateIso !== o.dateIso; this.sky0 = { mode, dateIso, day: day || 0 };
-    if (changed && o.dateIso !== undefined) { this.updateSky(); if (mode !== o.mode) this.aim(20, 80); } else this.updateSky(); }
+    const dayOnly = !changed && (day || 0) !== o.day, r0 = this.globe.rotation.y;
+    if (changed && o.dateIso !== undefined) { this.updateSky(); if (mode !== o.mode) this.aim(20, 80); } else this.updateSky();
+    // only the forecast day changed: the Earth turns to that date (Sun, lighting, day/night follow it), and the camera
+    // turns with it about the polar axis, so India stays fixed on screen
+    if (dayOnly && this.globe.rotation.y !== r0) this.camQ.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), this.globe.rotation.y - r0)); }
   now() { const { mode, dateIso, day } = this.sky0, t = TIMES.find(x => x.id === mode);
     if (!t || mode === 'today' || !dateIso) return new Date();
     const [y, m, d] = dateIso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, t.h, t.m) - 5.5 * 3600000 + day * 86400000); }
