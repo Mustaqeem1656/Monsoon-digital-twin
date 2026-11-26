@@ -293,7 +293,7 @@ export default function App() {
           </nav>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: ready ? 'var(--accent)' : '#E07A4F' }} />{ready ? 'Engine ready' : 'Engine offline'}</span>
-            <span className="mono" style={{ color: 'var(--text-faint)' }}>10-day rollout · {primeMs ? primeMs.toFixed(0) + ' ms' : '…'}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-faint)' }}>10-day rollout · {primeMs ? primeMs.toFixed(0) + ' ms' : '…'}</span>
           </div>
         </header>
 
@@ -432,7 +432,7 @@ function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
           {t.active ? <>
             <span className="fred" style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-strong)' }}>{tval(t)[0]}</span>
             <span data-testid={'meaning-' + t.id} style={{ fontSize: 10, lineHeight: 1.3, color: 'var(--text-muted)' }}>{tval(t)[1]}</span>
-            <span className="mono" style={{ fontSize: 11, color: imp.has_change && t.delta !== 0 ? 'var(--text-strong)' : 'var(--text-faint)' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + dunit(t) + ' vs plain' : 'plain forecast'}</span>
+            <span style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums', color: imp.has_change && t.delta !== 0 ? 'var(--text-strong)' : 'var(--text-faint)' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + dunit(t) + ' vs plain' : 'plain forecast'}</span>
             <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--text-faint)' }}><span title="ensemble members agreeing">{agree}</span>
               <button type="button" aria-expanded={why === t.id} onClick={e => { e.stopPropagation(); setWhy(why === t.id ? null : t.id); }} style={{ ...btn, minHeight: 22, padding: '0 8px', fontSize: 10, border: '1px solid var(--accent-edge)', background: 'transparent' }}>Why? {why === t.id ? '▴' : '▾'}</button></span>
           </> : <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Off season (Jun–Sep only)</span>}
