@@ -45,11 +45,16 @@ class Block(nn.Module):
 
 
 class MonsoonNet(nn.Module):
-    def __init__(self, width: int = 96, n_blocks: int = 3, static=None, lat=None, mean=None, std=None, rain_direct: bool = False):
+    def __init__(self, width: int = 96, n_blocks: int = 3, static=None, lat=None, mean=None, std=None, rain_direct: bool = False,
+                 n_extra: int = 0, toa: bool = False):
         super().__init__()
         self.width, self.n_blocks, self.rain_direct = width, n_blocks, rain_direct
+        # optional extra inputs (appended after the original ones, so old weights load unchanged):
+        #   n_extra: bundled static geography maps (backend/weights/static_extra.npz), stored as a buffer
+        #   toa    : daily-mean top-of-atmosphere sunshine of the PREDICTED day, computed from latitude + day-of-year
+        self.n_extra, self.toa = n_extra, toa
         # rain_direct: the rain channel is predicted outright (not as a change from yesterday); other channels stay residual
-        n_in = 3 * NC + 2 + 2 + 2                          # 3 days x 6 ch, static 2, doy sin/cos 2, lat/lon 2
+        n_in = 3 * NC + 2 + 2 + 2 + n_extra + int(toa)     # 3 days x 6 ch, static 2, doy sin/cos 2, lat/lon 2 (+ extras)
         self.stem = nn.Conv2d(n_in, width, 3, padding=1, padding_mode="replicate")
         self.blocks = nn.ModuleList(Block(width) for _ in range(n_blocks))
         self.head = nn.Sequential(CellNorm(width), nn.GELU(), nn.Conv2d(width, NC, 1))
@@ -61,6 +66,10 @@ class MonsoonNet(nn.Module):
         self.register_buffer("coords", torch.stack([yy, xx]))
         latv = torch.linspace(6.5, 37.5, H) if lat is None else torch.as_tensor(lat, dtype=torch.float32)
         w = torch.cos(torch.deg2rad(latv)); self.register_buffer("lat_w", (w / w.mean())[:, None])
+        if n_extra:
+            self.register_buffer("extra", torch.zeros(n_extra, H, W))
+        if toa:
+            self.register_buffer("lat_rad", torch.deg2rad(latv)[:, None].expand(H, W).clone())
         self.register_buffer("mean", torch.zeros(NC) if mean is None else torch.as_tensor(mean, dtype=torch.float32))
         self.register_buffer("std", torch.ones(NC) if std is None else torch.as_tensor(std, dtype=torch.float32))
 
@@ -90,13 +99,26 @@ class MonsoonNet(nn.Module):
         lo[TCWV] = (0 - self.mean[TCWV]) / self.std[TCWV]
         return torch.maximum(torch.minimum(z, hi[:, None, None]), lo[:, None, None])
 
+    def toa_map(self, angle):
+        """[B] angle of the predicted day -> [B,1,H,W] daily-mean TOA incoming solar radiation, scaled ~(W/m2-380)/60.
+        Standard astronomy: declination, sunset hour angle, eccentricity factor (no data needed)."""
+        a = angle[:, None, None]
+        decl = 0.4093 * torch.sin(a - 1.405)
+        ecc = 1 + 0.033 * torch.cos(a)
+        phi = self.lat_rad[None]
+        h0 = torch.acos(torch.clamp(-torch.tan(phi) * torch.tan(decl), -1.0, 1.0))
+        q = 1361.0 / math.pi * ecc * (h0 * torch.sin(phi) * torch.sin(decl) + torch.cos(phi) * torch.cos(decl) * torch.sin(h0))
+        return ((q - 380.0) / 60.0)[:, None]
+
     # ---- one step and a rollout -----------------------------------------------------------------------------
     def step(self, z3, angle):
         """z3 [B,3,6,H,W] normalised, angle [B] = 2*pi*doy/365 of the day being PREDICTED -> next state [B,6,H,W]."""
         B, _, _, H, W = z3.shape
         season = torch.stack([torch.sin(angle), torch.cos(angle)], 1)[:, :, None, None].expand(B, 2, H, W)
         x = torch.cat([z3.reshape(B, 3 * NC, H, W), self.static.expand(B, -1, -1, -1), season,
-                       self.coords.expand(B, -1, -1, -1)], 1)
+                       self.coords.expand(B, -1, -1, -1)]
+                      + ([self.extra.expand(B, -1, -1, -1)] if self.n_extra else [])
+                      + ([self.toa_map(angle)] if self.toa else []), 1)
         h = self.stem(x)
         for b in self.blocks:
             h = b(h)

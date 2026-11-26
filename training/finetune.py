@@ -11,6 +11,10 @@ Tweaks (switch on several with '+', e.g. skillnorm+leadw):
   raindirect rain predicted outright instead of as a change from yesterday (other channels stay residual)
   outnoise   noise only on the model's own fed-back outputs (instead of on every input every step)
   ema        low learning rate polish, scoring exponential-moving-average weights
+New inputs (their first-layer weights start at ZERO, so the starting model is exactly the current one):
+  toa        daily-mean top-of-atmosphere sunshine of the predicted day (computed from latitude + day-of-year)
+  geo        6 static ERA5 maps: sub-grid orography std + slope, high/low vegetation, soil type, lake cover
+  coast      signed distance to the coast (from land_sea_mask)
 """
 from __future__ import annotations
 import argparse, copy, json, math, sys, time
@@ -32,10 +36,29 @@ FT = dict(epochs=2, ckpts_per_epoch=2, lr=5e-5, bs=4, horizon=8, out_noise=0.03,
 OUT = ROOT / "cache" / "tweaks"
 
 
-def load_init(path, rain_direct=False):
+GEO, COAST = list(range(6)), [6]                                    # rows of backend/weights/static_extra.npz
+
+
+def load_init(path, rain_direct=False, extra_rows=(), toa=False):
     ck = torch.load(path, map_location="cpu", weights_only=False)
-    m = MonsoonNet(**{**ck["arch"], "rain_direct": rain_direct or ck["arch"].get("rain_direct", False)})
-    m.load_state_dict(ck["state_dict"]); return m
+    arch = {**ck["arch"], "rain_direct": rain_direct or ck["arch"].get("rain_direct", False)}
+    if not extra_rows and not toa:
+        m = MonsoonNet(**arch); m.load_state_dict(ck["state_dict"]); return m
+    assert not arch.get("n_extra") and not arch.get("toa"), "start from a checkpoint without extra inputs"
+    m = MonsoonNet(**{**arch, "n_extra": len(extra_rows), "toa": toa})
+    sd = dict(ck["state_dict"]); w = sd["stem.weight"]
+    neww = torch.zeros(w.shape[0], m.stem.in_channels, *w.shape[2:]); neww[:, :w.shape[1]] = w   # new inputs: zero
+    sd["stem.weight"] = neww
+    if extra_rows:
+        f = np.load(ROOT / "backend" / "weights" / "static_extra.npz")["fields"]
+        sd["extra"] = torch.as_tensor(f[list(extra_rows)])
+    if toa:
+        sd["lat_rad"] = m.lat_rad
+    m.load_state_dict(sd); return m
+
+
+def arch_of(m):
+    return {"width": m.width, "n_blocks": m.n_blocks, "rain_direct": m.rain_direct, "n_extra": m.n_extra, "toa": m.toa}
 
 
 def baseline_mse(Z, dates, tr_win, H, lat_w):
@@ -72,7 +95,8 @@ def run(variant, init_path, cfg, device, log):
     set_seed(cfg["seed"])
     H = 10 if "h10" in tw else FT["horizon"]
     data, dates, _ = load_data(); std_phys = torch.as_tensor(load_std(), device=device)
-    model = load_init(init_path, "raindirect" in tw).to(device)
+    rows = (GEO if "geo" in tw else []) + (COAST if "coast" in tw else [])
+    model = load_init(init_path, "raindirect" in tw, rows, "toa" in tw).to(device)
     with torch.no_grad():
         Z = model.encode(torch.as_tensor(data).to(device))
     tr_win = Windows(dates, cfg["data"]["train_years"])
@@ -113,7 +137,7 @@ def run(variant, init_path, cfg, device, log):
             if (b + 1) % every == 0 and (b + 1) // every <= FT["ckpts_per_epoch"]:
                 m = ema if ema is not None else model
                 name = f"s{step}"
-                torch.save({"arch": {"width": m.width, "n_blocks": m.n_blocks, "rain_direct": m.rain_direct},
+                torch.save({"arch": arch_of(m),
                             "state_dict": copy.deepcopy(m.state_dict())}, od / f"{name}.pt")
                 r = tweak_eval.evaluate(m, "tune"); r["ckpt"] = name; results.append(r)
                 log(f"[{variant}] {name} ({time.time() - t0:.0f}s) {tweak_eval.fmt(name, r)}")

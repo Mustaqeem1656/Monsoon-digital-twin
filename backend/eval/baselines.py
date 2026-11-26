@@ -9,6 +9,7 @@ Both have the same signature as serve.simulate, so the local grader can score th
 from __future__ import annotations
 import datetime as dt
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -17,7 +18,8 @@ import numpy as np
 from monsoon_r1 import stats as KS
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_NC = ROOT / "data" / "india_climate_train.nc"
+DATA_DIR = Path(os.environ.get("MONSOON_DATA", ROOT / "data"))   # override, e.g. to share one copy across worktrees
+DATA_NC = DATA_DIR / "india_climate_train.nc"
 TRAIN_YEARS = range(2005, 2019)
 VAL_YEARS = range(2019, 2022)
 REF_YEAR = 2001                      # a non-leap year, used only to turn day-of-year into a month/day
@@ -37,7 +39,7 @@ def load_data():
 
 
 def load_std() -> np.ndarray:
-    return np.array(json.loads((ROOT / "data" / "stats.json").read_text())["std"], "f4")
+    return np.array(json.loads((DATA_DIR / "stats.json").read_text())["std"], "f4")
 
 
 def _yyyymmdd(d: dt.date) -> int:

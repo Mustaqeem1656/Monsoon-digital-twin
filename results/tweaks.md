@@ -1,6 +1,6 @@
 # Training tweaks — before/after (branch `tweaks`)
 
-**Verdict: no tweak adopted. Shipped weights (`backend/weights/model.pt`, `model.onnx`) are unchanged.**
+**Verdict (sections A–D, incl. new inputs): no tweak adopted. Shipped weights (`backend/weights/model.pt`, `model.onnx`) are unchanged.**
 
 ## Protocol
 - Every variant: fine-tune from the current best weights, seed 42, 2 epochs of 8-day rollouts (10 for h10), batch 4,
@@ -37,6 +37,30 @@
 
 All 4 checkpoints per variant are in `cache/tweaks/<variant>/results.json` (git-ignored).
 
+## C. New inputs (stem weights for the new channels start at ZERO: the starting model is bit-identical to current, max diff 0)
+Same fine-tune schedule as above; best checkpoint per variant on tune (2019–2020).
+| variant | total /70 | mean SS | CSI skill | blur pts | day-8 var ratio t2m/tp/u10/v10/msl/tcwv | caus pts | pass rate nonzero/local/propag/stable | null exact | CPU s/call |
+|---|---|---|---|---|---|---|---|---|---|
+| current (before) | 64.20 | +0.1059 | +0.0949 | 10.00 | 0.97/0.83/0.92/0.73/0.90/0.89 | 13.50 | 1.00 1.00 0.60 1.00 | yes (0) | 0.19* |
+| control (no tweak) | 63.33 | +0.1037 | +0.0952 | 10.00 | 0.99/1.08/0.83/0.74/0.82/0.94 | 13.12 | 1.00 1.00 0.50 1.00 | yes (0) | 0.18* |
+| toa (daily-mean top-of-atmosphere sunshine, analytic) | 63.48 | +0.1041 | +0.0955 | 10.00 | 0.99/1.08/0.83/0.74/0.82/0.94 | 13.12 | 1.00 1.00 0.50 1.00 | yes (0) | 0.07 |
+| geo (6 static ERA5 maps) | 63.41 | +0.1031 | +0.0955 | 10.00 | 0.99/1.09/0.83/0.74/0.82/0.94 | 13.31 | 1.00 1.00 0.55 1.00 | yes (0) | 0.06 |
+| coast (signed distance to coast) | 63.30 | +0.1037 | +0.0951 | 10.00 | 0.99/1.08/0.83/0.74/0.82/0.94 | 13.12 | 1.00 1.00 0.50 1.00 | yes (0) | 0.06 |
+| D: avg(current, toa s637, toa s2549) | 64.37 | +0.1074 | +0.0959 | 10.00 | 0.98/0.95/0.88/0.74/0.86/0.92 | 13.12 | 1.00 1.00 0.50 1.00 | yes (0) | 0.08 |
+
+\* CPU times from the earlier session; the machine was less loaded this time (0.06–0.08 s). All well under the 5 s limit.
+
+- Each new input on its own ≈ control (±0.15): the model does not use them in a short fine-tune from converged weights.
+  Their later checkpoints (s2549) reach the same propagates 0.80 / caus 14.25 as `outnoise`, again at a skill cost.
+- The toa average is the only candidate above current on total (+0.17, SS +0.0015, CSI +0.0010), but it **loses
+  causality points (13.50 → 13.12, propagates 0.60 → 0.50)** → rejected on tune, so the one-time 2021 check was not spent on it.
+- Static maps: `backend/weights/static_extra.npz` (7×32×36, z-scored; sdor, slor, cvh, cvl, soil_type, lake_cover,
+  coast_dist), built once by `backend/tools/build_static_extra.py` with the kit's own archive address and `half_degree`
+  regrid (its land_sea_mask matches the kit's exactly). TOA is computed inside the network from latitude and the
+  predicted day's angle, so serving needs no file and no download; both export to ONNX (torch vs ONNX 2.6e-6 std).
+- Recommendation for the bigdata retrain: train from scratch with `toa+geo+coast` on (free, zero-cost at serving) together
+  with `outnoise` and EMA; there the network can actually learn to use them.
+
 ## Confirmation on 2021 (run once, for the best tune candidate)
 | model | total /70 | forecast pts /45 | mean SS | CSI skill | blur | caus | pass rates | null | CPU |
 |---|---|---|---|---|---|---|---|---|---|
@@ -56,5 +80,6 @@ The average loses forecast points on 2021 → rejected under the "no section may
 
 ## Checks
 - Repo scan 15/15. Null shock exact (max dev 0) for every variant. CPU ≤ 0.21 s per 10-step call.
-- Torch vs ONNX: **not run** because `onnxruntime` is not installed in `.venv`. Since no new weights were adopted,
-  `model.onnx` is unchanged from main. ONNX export and the fresh-clone validator were skipped because nothing changed.
+- Torch vs ONNX (clean Python 3.12 venv with onnxruntime): shipped model.onnx vs model.pt 2.2e-6; fresh exports of the
+  current and the all-new-inputs model 2.6e-6 (std units).
+- Final checks from a fresh clone: see the table below.
