@@ -20,7 +20,7 @@
 | normalisation / channels | `norm.json` == checkpoint buffers exactly; channel order identical ✓ |
 | note | the current checkpoint was selected on 2019–2021 val loss, so 2021 is not perfectly unseen for it |
 
-## B/C. Results on tune (2019–2020); best checkpoint per variant
+## B/D. Results on tune (2019–2020); best checkpoint per variant
 | variant | total /70 | mean SS | CSI skill | blur pts | day-8 var ratio t2m/tp/u10/v10/msl/tcwv | caus pts | pass rate nonzero/local/propag/stable | null exact | CPU s/call |
 |---|---|---|---|---|---|---|---|---|---|
 | **current (before)** | **64.20** | +0.1059 | +0.0949 | 10.00 | 0.97/0.83/0.92/0.73/0.90/0.89 | 13.50 | 1.00 1.00 0.60 1.00 | yes (0) | 0.19 |
@@ -78,8 +78,39 @@ The average loses forecast points on 2021 → rejected under the "no section may
 - **Drop:** `raindirect` (clearly worse: −6.9 total, CSI −0.02), `h10` (no gain over 8-day rollouts), `leadw` (≈ control).
 - Padding is already replicate.
 
+## Ablation summary (for the README / brief)
+Every idea was fine-tuned from the shipped model with the same seed and schedule, scored by the full local grader
+(built on `monsoon_r1.scoring`) on 2019–2020 windows, and compared with the shipped model (64.20 / 70) and with a
+no-tweak fine-tune (63.33). Decision: **the shipped model stays.**
+
+| idea | best total vs current 64.20 | why rejected |
+|---|---|---|
+| skill-normalised loss | 61.63 (−2.57) | skill falls; "stable" pass rate drops to 0.95 |
+| extra weight on scored days 1/4/8 | 63.43 (−0.77) | no better than plain extra training |
+| 10-day rollouts | 62.23 (−1.97) | lower skill, no gain at day 8 |
+| replicate edge padding | — | already in the shipped model |
+| direct (non-residual) rain head | 57.35 (−6.85) | clearly worse rain (CSI skill −0.02) |
+| noise on fed-back outputs | 63.37 (−0.83) | better causality (14.25) but lower skill |
+| EMA low-LR polish | 64.02 (−0.18) | least harmful, still not better |
+| average of top-3 checkpoints | 64.23 (+0.03) | lost forecast points on the 2021 confirmation (68.11 → 67.88) |
+| TOA sunshine input | 63.48 (−0.72) | ≈ plain extra training; model cannot learn it in a short fine-tune |
+| 6 static ERA5 maps | 63.41 (−0.79) | same |
+| distance to coast | 63.30 (−0.90) | same |
+| average current + 2 sunshine checkpoints | 64.37 (+0.17) | loses causality points (13.50 → 13.12) |
+
+Take-away: the shipped model sits at a good optimum; short fine-tunes only trade skill against causality.
+The ideas that help causality (output noise) or cost nothing at serving (new inputs, EMA) are used in a from-scratch retrain instead.
+
 ## Checks
 - Repo scan 15/15. Null shock exact (max dev 0) for every variant. CPU ≤ 0.21 s per 10-step call.
 - Torch vs ONNX (clean Python 3.12 venv with onnxruntime): shipped model.onnx vs model.pt 2.2e-6; fresh exports of the
   current and the all-new-inputs model 2.6e-6 (std units).
-- Final checks from a fresh clone: see the table below.
+- Final checks (fresh `git clone` of this branch, server in a clean Python 3.12 venv with CPU torch + onnxruntime):
+
+| check | result |
+|---|---|
+| `monsoon_r1.schema_validator` over HTTP | all checks passed (JSON + base64; none / warm_ocean / zeros), 0.08–0.13 s per call |
+| local grader over HTTP (default windows) | 68.1 / 70, hard gate PASS, max 0.13 s per call |
+| repo scan | 15 / 15, no flags |
+| `backend/tools/verify_data.py` | 16 / 16 |
+| torch vs ONNX | ≤ 2.6e-6 std |

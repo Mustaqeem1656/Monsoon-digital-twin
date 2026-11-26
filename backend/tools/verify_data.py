@@ -11,6 +11,7 @@ c. Forecast days come from serve.py (gateway /run vs a direct call through the k
    physical (K, Pa); the only K->degC conversion is in the dashboard's display code.
 """
 from __future__ import annotations
+import os
 import json, subprocess, sys, urllib.request
 from pathlib import Path
 
@@ -49,7 +50,7 @@ def bilinear(a, la, lo):
 
 
 def main():
-    ds = xr.open_dataset(ROOT / "data" / "india_climate_train.nc")
+    ds = xr.open_dataset(Path(os.environ.get("MONSOON_DATA", ROOT / "data")) / "india_climate_train.nc")
     assert float(ds.lat[0]) == 6.5 and float(ds.lon[0]) == 65.5, "dataset grid origin changed"
     metas = {p["id"]: p for p in get("/presets")}
     print("\n== a. dataset vs gateway vs dashboard ==")
