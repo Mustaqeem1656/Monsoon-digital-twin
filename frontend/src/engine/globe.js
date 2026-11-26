@@ -78,6 +78,8 @@ export class GlobeEngine {
     const pinTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.strokeStyle = 'rgba(233,215,138,0.95)'; x.lineWidth = 5; x.beginPath(); x.arc(64, 64, 52, 0, Math.PI * 2); x.stroke(); return new T.CanvasTexture(c); })();
     const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,240,190,1)'); g.addColorStop(0.35, 'rgba(233,215,138,0.9)'); g.addColorStop(1, 'rgba(233,215,138,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new T.CanvasTexture(c); })();
     this.marker = new T.Group(); this.globe.add(this.marker); this.marker.visible = false;
+    // optional caption next to the ring (text only; set through setMarker({ caption }))
+    this.mkLabel = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false })); this.mkLabel.scale.set(0.24, 0.025, 1); this.mkLabel.visible = false; this.globe.add(this.mkLabel); this.mkText = null;
     const mkr = (r0, r1, op) => new T.Mesh(new T.RingGeometry(r0, r1, 96), new T.MeshBasicMaterial({ color: 0xe9d78a, transparent: true, opacity: op, side: T.DoubleSide, depthWrite: false }));
     this.markerRing = mkr(0.93, 1.0, 0.95); this.markerFill = new T.Mesh(new T.CircleGeometry(1, 96), new T.MeshBasicMaterial({ color: 0xe9d78a, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false }));
     this.markerPulse = mkr(0.97, 1.0, 0.8); this.markerDot = new T.Mesh(new T.CircleGeometry(0.08, 32), new T.MeshBasicMaterial({ color: 0xfff2c4, side: T.DoubleSide }));
@@ -131,7 +133,11 @@ export class GlobeEngine {
   /** Sky clock. mode 'noon'|'dusk'|'night': the scenario date (start preset day + timeline day) at that IST time;
    *  'today': today's real sky, ticking. The weather never follows this clock; it is decoration and lighting only. */
   setSky({ mode, dateIso, day }) { const o = this.sky0, changed = mode !== o.mode || dateIso !== o.dateIso; this.sky0 = { mode, dateIso, day: day || 0 };
-    if (changed && o.dateIso !== undefined) { this.updateSky(); if (mode !== o.mode) this.aim(20, 80); } else this.updateSky(); }
+    const dayOnly = !changed && (day || 0) !== o.day, r0 = this.globe.rotation.y;
+    if (changed && o.dateIso !== undefined) { this.updateSky(); if (mode !== o.mode) this.aim(20, 80); } else this.updateSky();
+    // only the forecast day changed: the Earth turns to that date (Sun, lighting, day/night follow it), and the camera
+    // turns with it about the polar axis, so India stays fixed on screen
+    if (dayOnly && this.globe.rotation.y !== r0) this.camQ.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), this.globe.rotation.y - r0)); }
   now() { const { mode, dateIso, day } = this.sky0, t = TIMES.find(x => x.id === mode);
     if (!t || mode === 'today' || !dateIso) return new Date();
     const [y, m, d] = dateIso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, t.h, t.m) - 5.5 * 3600000 + day * 86400000); }
@@ -160,7 +166,7 @@ export class GlobeEngine {
   northUp() { this.lookFrom(new T.Vector3(0, 0, 1).applyQuaternion(this.camQ)); }
   resetView() { this.aim(20, 80); this.dist = 2.3; }
   zoomIn() { this.dist = Math.max(1.12, this.dist * 0.85); }
-  zoomOut() { this.dist = Math.min(6, this.dist * 1.18); }
+  zoomOut() { this.dist = Math.min(8.1, this.dist * 1.18); }
   /** Screen position (CSS px, relative to the canvas) of a surface point; used by the browser tests. */
   screenOf(lat, lon) { this.cam.position.set(0, 0, this.dist).applyQuaternion(this.camQ); this.cam.quaternion.copy(this.camQ); this.cam.updateMatrixWorld();
     const p = this.worldOf(lat, lon).project(this.cam), rc = this.cv.getBoundingClientRect(); return { x: rc.left + (p.x + 1) / 2 * rc.width, y: rc.top + (1 - p.y) / 2 * rc.height }; }
@@ -184,7 +190,7 @@ export class GlobeEngine {
         this.camQ.multiply(q); return; }
       this.hover(e.clientX, e.clientY); });
     cv.addEventListener('pointerleave', () => { this.clearLift(); this.cb.onHover && this.cb.onHover(null); });
-    cv.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(e.deltaY * 0.0006), nd = Math.max(1.12, Math.min(6, this.dist * f));
+    cv.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(e.deltaY * 0.0006), nd = Math.max(1.12, Math.min(8.1, this.dist * f));
       if (nd < this.dist) { const h = this.pick(e.clientX, e.clientY); if (h) { const cd0 = new T.Vector3(0, 0, 1).applyQuaternion(this.camQ); const q = new T.Quaternion().setFromUnitVectors(cd0, h.world.clone().normalize()); const qi = new T.Quaternion().slerp(q, Math.min(0.25, (this.dist - nd) / this.dist * 0.9)); this.camQ.premultiply(qi); } }
       this.dist = nd; }, { passive: false });
     cv.addEventListener('dblclick', e => { const h = this.pick(e.clientX, e.clientY); if (h) { this.lookFrom(h.world); this.dist = Math.max(1.3, this.dist * 0.7); } });
@@ -247,6 +253,8 @@ export class GlobeEngine {
     const box = (sp, pos) => { v.copy(pos).applyMatrix4(this.globe.matrixWorld); const d = v.distanceTo(cp), ppu = h / (tf * d); v.project(this.cam);
       const cx = (v.x + 1) / 2 * w, cy = (1 - v.y) / 2 * h, hw = sp.scale.x * ppu / 2 * 0.8, hh = sp.scale.y * ppu / 2 * 0.8; return { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh }; };
     const hit = b => ko.some(r => b.x1 > r.x && b.x0 < r.x + r.w && b.y1 > r.y && b.y0 < r.y + r.h);
+    this.mkLabel.renderOrder = 10; this.mkLabel.visible = false;                 // ring caption: first side of the ring not under a panel
+    if (this.marker.visible && this.mk && this.mk.caption && this.mkAlts) { const free = this.mkAlts.find(a => !hit(box(this.mkLabel, a))); if (free) { this.mkLabel.position.copy(free); this.mkLabel.visible = true; } }
     for (const L of this.labelSprites) { L.s.renderOrder = 10; if (!L.alts) { L.s.visible = !hit(box(L.s, L.s.position)); continue; }
       const free = L.alts.find(a => !hit(box(L.s, a))); if (free) { L.s.position.copy(free); L.s.visible = true; } else L.s.visible = false; } }
   grid(key, la, lo) { const a = this.view.frame && this.view.frame[key]; if (!a) return 0; let gy = 37.5 - la, gx = lo - 65.5; gy = Math.max(0, Math.min(31, gy)); gx = Math.max(0, Math.min(35, gx));
@@ -308,7 +316,11 @@ export class GlobeEngine {
   // ---- marker, placing, hover --------------------------------------------------------------------------
   setPlacing(on) { this.placing = on; this.cv.style.cursor = on ? 'crosshair' : 'grab'; }
   /** show a drop marker of radius radiusDeg (degrees) at center */
-  setMarker({ show, center, radiusDeg }) { this.mk = { show, center, radiusDeg }; this.placeMarker(); }
+  setMarker({ show, center, radiusDeg, caption }) { this.mk = { show, center, radiusDeg, caption };
+    if (caption && caption !== this.mkText) { this.mkText = caption; const c = document.createElement('canvas'); c.width = 768; c.height = 80; const x = c.getContext('2d');
+      x.font = '600 34px Inter, sans-serif'; x.textAlign = 'center'; x.shadowColor = 'rgba(0,0,0,0.9)'; x.shadowBlur = 8; x.fillStyle = 'rgba(245,235,192,0.95)'; x.fillText(caption, 384, 50);
+      if (this.mkLabel.material.map) this.mkLabel.material.map.dispose(); this.mkLabel.material.map = new T.CanvasTexture(c); this.mkLabel.material.needsUpdate = true; }
+    this.placeMarker(); }
   /** outline a lat/lon box [lat0, lat1, lon0, lon1] on the globe (judge shocks), or null */
   setBox(box) { if (this.boxLine) { this.globe.remove(this.boxLine); this.boxLine.geometry.dispose(); this.boxLine = null; } if (!box) return;
     const [a0, a1, b0, b1] = box, pts = [], e = 1.011;
@@ -329,7 +341,8 @@ export class GlobeEngine {
     this.globe.add(g); }
   placeMarker(at) { const m = this.mk, c = at || m.center;
     if (!(m.show || at) || !c) { this.marker.visible = false; return; } const n = this.vec(c[0], c[1]);
-    this.marker.position.copy(n.clone().multiplyScalar(1.009)); this.marker.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), n); this.marker.scale.setScalar((m.radiusDeg || 3) * RAD); this.marker.visible = true; }
+    this.marker.position.copy(n.clone().multiplyScalar(1.009)); this.marker.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), n); this.marker.scale.setScalar((m.radiusDeg || 3) * RAD); this.marker.visible = true;
+    if (m.caption) { const r = m.radiusDeg || 3; this.mkAlts = [[c[0] - r - 1.2, c[1]], [c[0] + r + 1.2, c[1]], [c[0], c[1] + r + 6], [c[0], c[1] - r - 6]].map(([a, o]) => this.vec(a, o).multiplyScalar(1.012)); } }
   clearLift() { this.fadeTo = 0; this.curRegion = -1; }
   lift(id) {
     if (id === this.curRegion) return; this.curRegion = id;

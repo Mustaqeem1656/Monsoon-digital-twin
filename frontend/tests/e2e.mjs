@@ -36,12 +36,14 @@ const navBtns = await page.getByRole('navigation', { name: 'Main' }).getByRole('
 ok(JSON.stringify(navBtns) === JSON.stringify(['Earth', 'Weather events', 'Shocks']), 'header has exactly three buttons: ' + navBtns.join(' / '));
 let b = await body(); ok(!/Timeline Prime|Branch a universe|Earth-B/.test(b), 'old tabs and "+ Branch a universe" are gone');
 ok(/Engine ready/.test(b) && /23 Jul 2019 · start/.test(b), 'header keeps start state, scenario date and engine status');
-// ---- sky clock ----
-ok(/23 Jul 2019 · 12:00 IST/.test(await page.innerText('header')), 'sky follows the scenario date (Noon by default): ' + (await page.innerText('header')).match(/\d+ \w+ \d{4} · \d\d:\d\d IST[^\n]*/)[0]);
+// ---- sky clock (no longer shown in the header: read the engine's clock string) ----
+await page.evaluate(() => { const g = window.__globe, f = g.cb.onClock; g.cb.onClock = s => { window.__clock = s; if (f) f(s); }; });
+const skyClock = async () => { await page.evaluate(() => window.__globe.updateSky()); return page.evaluate(() => window.__clock || ''); };
+ok(/23 Jul 2019 · 12:00 IST/.test(await skyClock()), 'sky follows the scenario date (Noon by default): ' + (await skyClock()).match(/\d+ \w+ \d{4} · \d\d:\d\d IST[^\n]*/)[0]);
 await dayBtn('+3').click(); await page.waitForTimeout(300);
-let h = await page.innerText('header'); ok(/26 Jul 2019 · day \+3/.test(h) && /26 Jul 2019 · 12:00 IST/.test(h), 'timeline +3 moves the scenario date and the sky to 26 Jul 2019');
+let h = (await body()) + ' | ' + (await skyClock()); ok(/26 Jul 2019 · day \+3/.test(h) && /26 Jul 2019 · 12:00 IST/.test(h), 'timeline +3 moves the scenario date and the sky to 26 Jul 2019');
 for (const [n, re] of [['Dusk', /26 Jul 2019 · 18:30 IST/], ['Night', /26 Jul 2019 · 00:30 IST/], ['Today (sky only)', /today, sky only/], ['Noon', /26 Jul 2019 · 12:00 IST/]]) {
-  await page.getByRole('button', { name: n, exact: true }).click(); await page.waitForTimeout(250); ok(re.test(await page.innerText('header')), 'sky time: ' + n); }
+  await page.getByRole('button', { name: n, exact: true }).click(); await page.waitForTimeout(250); ok(re.test(await skyClock()), 'sky time: ' + n); }
 ok(/The weather is never live/.test(await body()), 'note: the weather is never live');
 await dayBtn('Now').click();
 // ---- tiles ----
@@ -62,10 +64,10 @@ await hdr('Earth').click(); b = await body();
 ok((await page.locator('[aria-label="Earth"] button').count()) === 7 && /Bay of Bengal low/.test(b) && /Back to Earth/.test(b), 'Earth panel: 6 start presets with dates + Back to Earth');
 await shot('10_earth_panel');
 await page.getByRole('button', { name: /^Pre-monsoon heatwave/ }).click();
-await page.waitForFunction(() => /Pre-monsoon heatwave/.test(document.querySelector('header').innerText) && /31 May 2019/.test(document.querySelector('header').innerText), null, { timeout: 30000 });
-ok(true, 'choosing a preset changes the start data (header: 31 May 2019)');
+await page.waitForFunction(() => /31 May 2019 · start/.test(document.body.innerText), null, { timeout: 30000 });
+ok(true, 'choosing a preset changes the start data (scenario date: 31 May 2019)');
 await hdr('Earth').click(); await page.getByRole('button', { name: /^Heavy-rain spell/ }).click();
-await page.waitForFunction(() => /23 Jul 2019/.test(document.querySelector('header').innerText) && /Start state/.test(document.body.innerText), null, { timeout: 30000 });
+await page.waitForFunction(() => /23 Jul 2019 · start/.test(document.body.innerText) && /Start state/.test(document.body.innerText), null, { timeout: 30000 });
 // ---- Weather events ----
 await hdr('Weather events').click(); await page.waitForTimeout(300);
 const evCards = await page.getByRole('group', { name: 'Event' }).getByRole('button').count();
