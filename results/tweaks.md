@@ -114,3 +114,32 @@ The ideas that help causality (output noise) or cost nothing at serving (new inp
 | repo scan | 15 / 15, no flags |
 | `backend/tools/verify_data.py` | 16 / 16 |
 | torch vs ONNX | ≤ 2.6e-6 std |
+
+## Bigdata retrain from scratch (one attempt) — REJECTED, shipped model stays
+`training/train_big.py`: 1979–1983 (half weight) + 1995–2004 + official 2005–2018 + 2022 as separate contiguous
+segments; validation 2019–2021; all new inputs on (TOA, 6 ERA5 static maps, coast distance), noise on fed-back outputs,
+EMA. 55 min on the RTX 5050. Checkpoints in git-ignored `cache/big/`.
+
+Tune (2019–2020, 51 windows), EMA checkpoint after each 8-day epoch:
+| model | total /70 | mean SS | CSI skill | blur | caus | pass rate nonzero/local/propag/stable | null | CPU s |
+|---|---|---|---|---|---|---|---|---|
+| current | 64.20 | +0.1059 | +0.0949 | 10.00 | 13.50 | 1.00 1.00 0.60 1.00 | exact | 0.19 |
+| b8e1 | 67.56 | +0.1210 | +0.1037 | 10.00 | 12.56 | 1.00 1.00 0.40 0.95 | exact | 0.07 |
+| b8e2 | 67.38 | +0.1227 | +0.1036 | 10.00 | 12.38 | 1.00 1.00 0.35 0.95 | exact | 0.06 |
+| b8e3 | 67.56 | +0.1232 | +0.1024 | 10.00 | 12.56 | 1.00 1.00 0.40 0.95 | exact | 0.19 |
+| b8e4 | 68.12 | +0.1234 | +0.1044 | 10.00 | 13.12 | 1.00 1.00 0.50 1.00 | exact | 0.20 |
+| b8e5 | 68.50 | +0.1226 | +0.1029 | 10.00 | 13.50 | 1.00 1.00 0.60 1.00 | exact | 0.06 |
+| **b8e6** (best) | **68.69** | +0.1212 | +0.1029 | 10.00 | 13.69 | 1.00 1.00 0.65 1.00 | exact | 0.06 |
+| avg3 (e4,e5,e6) | 68.31 | +0.1229 | +0.1035 | 10.00 | 13.31 | 1.00 1.00 0.55 1.00 | exact | 0.06 |
+
+b8e6 was better than current in every tune section, so it got the one-time 2021 confirmation:
+| 2021 confirm (24 windows) | total /70 | mean SS | CSI skill | blur | caus | pass rates | null |
+|---|---|---|---|---|---|---|---|
+| current | **68.11** | +0.1184 | **+0.1010** | 10.00 | **13.50** | 1.00 1.00 0.60 1.00 | exact |
+| big b8e6 | 66.99 | +0.1214 | +0.0950 | 10.00 | 12.75 | 1.00 1.00 0.50 0.90 | exact |
+
+Default local grader (the 0.13 skill-margin scale): current 68.12, SS +0.1311, CSI +0.1474, caus 13.13;
+big b8e6 68.12, SS +0.1361, CSI +0.1433, caus 13.13.
+
+**Verdict: rejected.** On 2021 it loses total (−1.12), heavy-rain CSI and causality ("stable" 0.90: one shock run
+grew too large). Better general skill did not carry over to rain extremes or shock behaviour. No ONNX export or merge prep.
