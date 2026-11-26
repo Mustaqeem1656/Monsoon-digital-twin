@@ -34,46 +34,37 @@ export const TILES = [
 ];
 export const TILE_KEY = { heat: 't2m', rain: 'tp', wind: 'ws', pressure: 'msl', moisture: 'tcwv' };
 export const KEY_TILE = { t2m: 'heat', tp: 'rain', ws: 'wind', msl: 'pressure', tcwv: 'moisture', u: 'wind', v: 'wind' };
-export const TIMES = [{ id: 'live', name: 'Live' }, { id: 'noon', name: 'Noon', h: 12, m: 0 }, { id: 'dusk', name: 'Dusk', h: 18, m: 30 }, { id: 'night', name: 'Night', h: 0, m: 30 }];
+// Sky clock: by default the sky follows the scenario date (start preset + timeline day) at the chosen time of day.
+// "Today (sky only)" shows today's real sky; the weather is never live.
+export const TIMES = [{ id: 'noon', name: 'Noon', h: 12, m: 0 }, { id: 'dusk', name: 'Dusk', h: 18, m: 30 }, { id: 'night', name: 'Night', h: 0, m: 30 }, { id: 'today', name: 'Today (sky only)' }];
 
-// The 9 gateway shock types. `toSpec` turns the slider values into the gateway's {type, strength, radius, ...}.
-// Radius: gateway sigma = radius/2 cells; the mockup's core is crad/1.6 cells, so radius = crad * 1.25.
-export const SCENS = [
-  { id: 'heatwave', name: 'Heatwave', key: 't2m', min: 1, max: 8, step: 0.5, def: 4, fmt: v => '+' + v + ' °C', strength: v => v / 4,
-    text: 'Hot air over land: 2 m temperature up. Watch the heat spread with the winds.' },
-  { id: 'warm_sea', name: 'Warm sea', key: 't2m', min: 1, max: 6, step: 0.5, def: 3, fmt: v => '+' + v + ' °C', strength: v => v / 3,
-    text: 'A marine heatwave: warmer air and more moisture over water, which can feed rain downwind.' },
-  { id: 'cyclone', name: 'Cyclone', key: 'tp', min: 4, max: 30, step: 2, def: 14, fmt: v => '−' + v + ' hPa', strength: v => v / 15,
-    text: 'Seeds a low-pressure system with spinning winds, extra moisture and rain. Best dropped over the sea.' },
-  { id: 'monsoon_stall', name: 'Monsoon stall', key: 'ws', min: 10, max: 80, step: 5, def: 40, fmt: v => '−' + v + ' % wind', strength: v => v / 40,
-    text: 'Weakens the winds that carry the monsoon inland.' },
-  { id: 'rain_burst', name: 'Rain burst', key: 'tp', min: 10, max: 120, step: 10, def: 60, fmt: v => '+' + v + ' mm/day', strength: v => v / 60,
-    text: 'A burst of heavy rain with a surge of moist air.' },
-  { id: 'dry_spell', name: 'Dry spell', key: 'tp', min: 10, max: 60, step: 5, def: 20, fmt: v => '−' + v + ' % moisture', strength: v => v / 20,
-    text: 'Dry air moves in: rain removed, less moisture, more crop stress.' },
-  { id: 'custom', name: 'Custom', key: 't2m', text: 'Change one variable directly. This is what judges may do live.' },
-  { id: 'judge_warm', name: 'Judge: warm Bay', key: 't2m', judge: true, center: [14, 88],
-    text: "The judge's warm_ocean test, exactly: +3 K and +15% moisture over the Bay of Bengal box (8–20°N, 82–94°E)." },
-  { id: 'judge_stall', name: 'Judge: Arabian stall', key: 'ws', judge: true, center: [14, 70],
+// Exactly four shocks (realistic weather patterns are under Weather events).
+export const SHOCKS = [
+  { id: 'judge_warm', name: 'Warm Bay of Bengal', tile: 'heat', box: [8, 20, 82, 94], center: [14, 88],
+    text: "The judge's warm_ocean test, exactly: +3 °C and +15% moisture over the Bay of Bengal box (8–20°N, 82–94°E)." },
+  { id: 'judge_stall', name: 'Weaker Arabian Sea winds', tile: 'wind', box: [8, 20, 65, 75], center: [14, 70],
     text: "The judge's monsoon_stall test, exactly: −40% wind over the Arabian Sea box (8–20°N, 65–75°E)." },
+  { id: 'zero', name: 'Zero shock', tile: null, center: [20, 80],
+    text: 'Adds nothing at all. The model is deterministic, so the difference must be exactly 0.' },
+  { id: 'custom', name: 'Custom', tile: null, text: 'Change one variable at a spot you choose.' },
 ];
 export const CVARS = [
-  { id: 't2m', name: 'Temp', key: 't2m', unit: '°C', min: -6, max: 6, step: 0.5, def: 2.5, toAmount: v => v },
-  { id: 'tp', name: 'Rain', key: 'tp', unit: 'mm/day', min: -40, max: 80, step: 5, def: 30, toAmount: v => v },
-  { id: 'u10', name: 'East wind', key: 'ws', unit: 'm/s', min: -8, max: 8, step: 0.5, def: -3, toAmount: v => v },
-  { id: 'v10', name: 'North wind', key: 'ws', unit: 'm/s', min: -8, max: 8, step: 0.5, def: 3, toAmount: v => v },
-  { id: 'msl', name: 'Pressure', key: 'msl', unit: 'hPa', min: -15, max: 15, step: 1, def: -6, toAmount: v => v * 100 },
-  { id: 'tcwv', name: 'Moisture', key: 'tcwv', unit: 'kg/m²', min: -20, max: 20, step: 1, def: 8, toAmount: v => v },
+  { id: 't2m', name: 'Temp', tile: 'heat', unit: '°C', min: -6, max: 6, step: 0.5, def: 2, toAmount: v => v },
+  { id: 'tp', name: 'Rain', tile: 'rain', unit: 'mm/day', min: -40, max: 80, step: 5, def: 30, toAmount: v => v },
+  { id: 'u10', name: 'East wind', tile: 'wind', unit: 'm/s', min: -8, max: 8, step: 0.5, def: -3, toAmount: v => v },
+  { id: 'v10', name: 'North wind', tile: 'wind', unit: 'm/s', min: -8, max: 8, step: 0.5, def: 3, toAmount: v => v },
+  { id: 'msl', name: 'Pressure', tile: 'pressure', unit: 'hPa', min: -15, max: 15, step: 1, def: -6, toAmount: v => v * 100 },
+  { id: 'tcwv', name: 'Moisture', tile: 'moisture', unit: 'kg/m²', min: -20, max: 20, step: 1, def: 8, toAmount: v => v },
 ];
+// layers switched ON when something runs (never switched off)
+export const EVENT_TILES = { cyclone: ['pressure', 'wind', 'rain'], heavy_rain: ['rain', 'moisture'], monsoon_onset: ['rain', 'moisture'], heatwave: ['heat'], western_disturbance: ['rain', 'heat'] };
 export const fmtSigned = (v, u) => (v > 0 ? '+' : '') + v + ' ' + u;
-
-export function shockSpec(scen, cvar, amt, crad, center) {
-  const sc = SCENS.find(s => s.id === scen);
-  if (sc.judge) return { type: scen };
-  const base = { lat: center[0], lon: center[1], radius: crad * 1.25 };
-  if (scen === 'custom') { const cv = CVARS.find(c => c.id === cvar); return { type: 'custom', variable: cv.id, amount: cv.toAmount(amt), strength: 1, ...base }; }
-  return { type: scen, strength: sc.strength(amt), ...base };
+export function shockSpec(id, cvar, amt, radius, center) {
+  if (id === 'judge_warm' || id === 'judge_stall' || id === 'zero') return { type: id };
+  const cv = CVARS.find(c => c.id === cvar);
+  return { type: 'custom', variable: cv.id, amount: cv.toAmount(amt), radius, lat: center[0], lon: center[1] };
 }
+export function eventSpec(id, strength, center) { return { event_id: id, strength, lat: center[0], lon: center[1] }; }
 
 // ---- gateway -----------------------------------------------------------------------------------------------
 async function req(path, body) {
@@ -88,12 +79,15 @@ export const api = {
   preset: id => req('/presets/' + encodeURIComponent(id)),
   geography: () => req('/geography'),
   shocks: () => req('/shocks'),
+  events: () => req('/events'),
+  eventPreview: (preset_id, event) => req('/event/preview', { preset_id, event }),
   preview: (preset_id, shock) => req('/shock/preview', { preset_id, shock }),
   run: (preset_id, shock, steps = 10) => req('/run', { preset_id, shock, steps }),
-  stream(preset_id, shock, onMsg, steps = 10) {
+  /** body = {preset_id, shock} or {preset_id, event} */
+  stream(body, onMsg, steps = 10) {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(GATEWAY.replace(/^http/, 'ws') + '/stream');
-      ws.onopen = () => ws.send(JSON.stringify({ preset_id, shock, steps }));
+      ws.onopen = () => ws.send(JSON.stringify({ ...body, steps }));
       ws.onmessage = e => { const m = JSON.parse(e.data); onMsg(m); if (m.type === 'done') { ws.close(); resolve(m); } if (m.type === 'error') { ws.close(); reject(new Error(m.detail)); } };
       ws.onerror = () => reject(new Error('stream connection failed'));
     });

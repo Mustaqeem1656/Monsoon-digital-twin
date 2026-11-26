@@ -15,7 +15,7 @@ const LABELS = [['PAKISTAN', 29.6, 69.4], ['AFGHANISTAN', 33.9, 66.2], ['CHINA',
 export class GlobeEngine {
   constructor(canvas, cb) {
     this.cv = canvas; this.cb = cb; this.dist = 2.3; this.curRegion = -1; this.t0 = Date.now(); this.simStart = Date.now();
-    this.timeMode = 'live'; this.on = {}; this.view = { frame: null, mode: 'prime', showCells: false, showPins: true };
+    this.sky0 = { mode: 'noon', dateIso: null, day: 0 }; this.on = {}; this.view = { frame: null, mode: 'prime', showCells: false, showPins: true };
     this.marker = null; this.mk = { show: false }; this.placing = false; this.parts = []; this.G = null;
     this.init();
   }
@@ -56,7 +56,14 @@ export class GlobeEngine {
         const rg = new T.Mesh(rgeo, new T.MeshStandardMaterial({ map: tl.load(TEX + 'saturn_rings.png'), side: T.DoubleSide, transparent: true, roughness: 1, depthWrite: false })); grp.add(rg); grp.ring = rg; }
       const lb = label(name); lb.scale.set(dist * 0.09, dist * 0.0225, 1); lb.position.set(0, radius + dist * 0.02, 0); grp.add(lb);
       sc.add(grp); this.bodies[name] = { grp, dist }; };
-    addBody('Moon', 2.4, 'moon.jpg', 140);
+    // MOON — DECORATION ONLY. Real direction and real phase (lit by the Sun light), but drawn at an exaggerated close
+    // distance (12 Earth radii, radius 0.35) so it is visible. It has zero effect on the gateway, the events, the shocks
+    // or the model: nothing here is ever sent anywhere, and the model has no Moon input.
+    addBody('Moon', 0.35, 'moon.jpg', 12);
+    { const B = this.bodies.Moon, lb = B.grp.children[1]; lb.scale.set(1.4, 0.35, 1); lb.position.set(0, 0.62, 0);
+      const ob = 23.43928 * RAD, pole = new T.Vector3(0, Math.cos(ob), -(-Math.sin(ob)));  // ecliptic pole: ECI (0,-sin ob, cos ob) -> scene (x, z, -y)
+      const ring = new T.Mesh(new T.RingGeometry(11.97, 12.03, 256), new T.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.16, side: T.DoubleSide, depthWrite: false }));
+      ring.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), pole.normalize()); sc.add(ring); this.moonRing = ring; }
     PLANETS.forEach(pl => addBody(pl.n, pl.r * 2.2, pl.t, 700, pl.ring));
     this.orbits = new T.Group(); sc.add(this.orbits);
     // India-domain shells: weather, wind flow, hover glow
@@ -107,10 +114,13 @@ export class GlobeEngine {
   dispose() { this.dead = true; clearInterval(this.tick); if (this.ro) this.ro.disconnect(); this.renderer.dispose(); }
 
   // ---- time + sky -----------------------------------------------------------------------------------------
-  setTime(mode) { if (mode === this.timeMode) return; this.timeMode = mode; this.simStart = this.presetDate(); this.t0 = Date.now(); this.updateSky(); this.aim(20, 80); }
-  presetDate() { const t = TIMES.find(x => x.id === this.timeMode); if (!t || t.id === 'live') return Date.now();
-    const ist = new Date(Date.now() + 5.5 * 3600000); return Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate(), t.h, t.m) - 5.5 * 3600000; }
-  now() { return new Date(this.simStart + (Date.now() - this.t0)); }
+  /** Sky clock. mode 'noon'|'dusk'|'night': the scenario date (start preset day + timeline day) at that IST time;
+   *  'today': today's real sky, ticking. The weather never follows this clock; it is decoration and lighting only. */
+  setSky({ mode, dateIso, day }) { const o = this.sky0, changed = mode !== o.mode || dateIso !== o.dateIso; this.sky0 = { mode, dateIso, day: day || 0 };
+    if (changed && o.dateIso !== undefined) { this.updateSky(); if (mode !== o.mode) this.aim(20, 80); } else this.updateSky(); }
+  now() { const { mode, dateIso, day } = this.sky0, t = TIMES.find(x => x.id === mode);
+    if (!t || mode === 'today' || !dateIso) return new Date();
+    const [y, m, d] = dateIso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, t.h, t.m) - 5.5 * 3600000 + day * 86400000); }
   w(v) { return new T.Vector3(v[0], v[2], -v[1]); }   // ECI (x, y, z-north) -> scene (x, y-up, z)
   updateSky() {
     const d = this.now(), k = sky(d); this.sky = k;
@@ -124,7 +134,7 @@ export class GlobeEngine {
       ['EM', ...PLANETS.map(p => p.n)].forEach(nm => { const pts = []; for (let m = -180; m <= 180; m += 1) { const h = helio(nm, k.T, m); pts.push(this.w(toEq(h.map((x, j) => x - k.em[j]))).multiplyScalar(AU)); }
         const earth = nm === 'EM'; this.orbits.add(new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: earth ? 0x7fd8be : 0x9fc2b6, transparent: true, opacity: earth ? 0.55 : 0.28, depthWrite: false }))); }); }
     const ist = new Date(d.getTime() + 5.5 * 3600000), mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][ist.getUTCMonth()];
-    this.cb.onClock && this.cb.onClock(ist.getUTCDate() + ' ' + mo + ' ' + ist.getUTCFullYear() + ' · ' + String(ist.getUTCHours()).padStart(2, '0') + ':' + String(ist.getUTCMinutes()).padStart(2, '0') + ' IST' + (this.timeMode === 'live' ? ' · LIVE' : ''));
+    this.cb.onClock && this.cb.onClock(ist.getUTCDate() + ' ' + mo + ' ' + ist.getUTCFullYear() + ' · ' + String(ist.getUTCHours()).padStart(2, '0') + ':' + String(ist.getUTCMinutes()).padStart(2, '0') + ' IST' + (this.sky0.mode === 'today' ? ' · today, sky only' : ''));
   }
   resize() { const el = this.cv.parentElement, w = el.clientWidth, h = el.clientHeight; this.renderer.setSize(w, h, false); this.cam.aspect = w / h; this.cam.updateProjectionMatrix(); }
 
@@ -246,10 +256,29 @@ export class GlobeEngine {
 
   // ---- marker, placing, hover --------------------------------------------------------------------------
   setPlacing(on) { this.placing = on; this.cv.style.cursor = on ? 'crosshair' : 'grab'; }
-  setMarker({ show, center, crad }) { this.mk = { show, center, crad }; this.placeMarker(); }
+  /** show a drop marker of radius radiusDeg (degrees) at center */
+  setMarker({ show, center, radiusDeg }) { this.mk = { show, center, radiusDeg }; this.placeMarker(); }
+  /** outline a lat/lon box [lat0, lat1, lon0, lon1] on the globe (judge shocks), or null */
+  setBox(box) { if (this.boxLine) { this.globe.remove(this.boxLine); this.boxLine.geometry.dispose(); this.boxLine = null; } if (!box) return;
+    const [a0, a1, b0, b1] = box, pts = [], e = 1.011;
+    for (let lo = b0; lo <= b1; lo += 0.5) pts.push(this.vec(a0, lo).multiplyScalar(e)); for (let la = a0; la <= a1; la += 0.5) pts.push(this.vec(la, b1).multiplyScalar(e));
+    for (let lo = b1; lo >= b0; lo -= 0.5) pts.push(this.vec(a1, lo).multiplyScalar(e)); for (let la = a1; la >= a0; la -= 0.5) pts.push(this.vec(la, b0).multiplyScalar(e));
+    this.boxLine = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({ color: 0xe9d78a, dashSize: 0.01, gapSize: 0.006, transparent: true, opacity: 0.95 }));
+    this.boxLine.computeLineDistances(); this.globe.add(this.boxLine); }
+  /** cyclone track [{day, lat, lon}] as a line with day markers, or null */
+  setTrack(track) { if (this.trackGrp) { this.globe.remove(this.trackGrp); this.trackGrp = null; } if (!track || !track.length) return;
+    const g = this.trackGrp = new T.Group(), e = 1.014;
+    g.add(new T.Line(new T.BufferGeometry().setFromPoints(track.map(t => this.vec(t.lat, t.lon).multiplyScalar(e))), new T.LineBasicMaterial({ color: 0xff8a5b, transparent: true, opacity: 0.95, depthWrite: false })));
+    const seen = new Set();
+    track.forEach(t => { const key = t.lat + ',' + t.lon; const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d');
+      x.fillStyle = 'rgba(255,138,91,0.95)'; x.beginPath(); x.arc(48, 48, 15, 0, Math.PI * 2); x.fill();
+      if (!seen.has(key)) { x.font = '600 34px Inter, sans-serif'; x.fillStyle = '#fff'; x.textAlign = 'center'; x.shadowColor = '#000'; x.shadowBlur = 6; x.fillText(String(t.day), 48, 30); }
+      seen.add(key); const sp = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
+      sp.scale.set(0.03, 0.03, 1); sp.position.copy(this.vec(t.lat, t.lon).multiplyScalar(e)); g.add(sp); });
+    this.globe.add(g); }
   placeMarker(at) { const m = this.mk, c = at || m.center;
     if (!(m.show || at) || !c) { this.marker.visible = false; return; } const n = this.vec(c[0], c[1]);
-    this.marker.position.copy(n.clone().multiplyScalar(1.009)); this.marker.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), n); this.marker.scale.setScalar(Math.max(0.8, (m.crad || 3) / 1.6) * 2 * RAD); this.marker.visible = true; }
+    this.marker.position.copy(n.clone().multiplyScalar(1.009)); this.marker.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), n); this.marker.scale.setScalar((m.radiusDeg || 3) * RAD); this.marker.visible = true; }
   clearLift() { this.fadeTo = 0; this.curRegion = -1; }
   lift(id) {
     if (id === this.curRegion) return; this.curRegion = id;

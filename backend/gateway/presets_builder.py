@@ -27,7 +27,8 @@ def ids():
 
 
 def up_to_date() -> bool:
-    need = [CACHE / f"{i}.npz" for i in ids()] + [CACHE / "presets_index.json", CACHE / "clim_pentad.npz"]
+    need = [CACHE / f"{i}.npz" for i in ids()] + [CACHE / "presets_index.json", CACHE / "clim_pentad.npz",
+                                                  CACHE / "events.npz", CACHE / "events.json"]
     if not all(p.exists() for p in need):
         return False
     return not DATA.exists() or min(p.stat().st_mtime for p in need) >= DATA.stat().st_mtime
@@ -41,7 +42,7 @@ def build(force: bool = False) -> Path:
     sys.path.insert(0, str(ROOT))
     from backend.eval.baselines import load_data, train_climatology, VAL_YEARS
     from backend.eval.local_grader import pick_windows
-    data, dates, _ = load_data()
+    data, dates, static = load_data()
     best = {}
     for label, t, sc in pick_windows(0, with_scores=True):
         ev = label.split(":")[0].replace("_", "-")
@@ -64,6 +65,12 @@ def build(force: bool = False) -> Path:
     clim = train_climatology()
     pent = np.stack([clim[5 * p:5 * p + 5, [0, 1]].mean(0) for p in range(73)]).astype("f4")
     np.savez_compressed(CACHE / "clim_pentad.npz", clim=pent, channels=np.array(["t2m", "tp"]))
+    # weather-event templates (anomaly vs the training-years day-of-year climatology), from the same windows
+    from monsoon_r1 import stats as KS
+    from backend.gateway import events, geo
+    india_land = (geo.regions()["india_frac"] >= 0.5) & (static[0] > 0.5)
+    ev_best = {k.replace("-", "_"): v for k, v in best.items()}
+    events.build_templates(data, dates, static, lambda d: KS.clim_for(clim, d), ev_best, india_land)
     return CACHE
 
 

@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from backend.gateway import geo, impact, presets_builder, shocks
+from backend.gateway import events, geo, impact, presets_builder, shocks
 
 HERE = Path(__file__).resolve().parent
 CFG = json.loads((HERE / "config.json").read_text())
@@ -137,15 +137,23 @@ def _prepare(req: dict):
     if not (1 <= steps <= MAX_STEPS):
         raise HTTPException(422, f"steps must be between 1 and {MAX_STEPS}")
     init, truth = preset_arrays(pid); meta = presets_meta()[pid]
-    spec = req.get("shock")
-    if spec is None:
-        pert, info = None, None
-    else:
-        try:
-            pert, info = shocks.build(spec, init[-1])
-        except ValueError as e:
-            raise HTTPException(422, str(e))
+    pert, info = _perturbation(req, init[-1])
     return pid, steps, init, truth, meta, pert, info
+
+
+def _perturbation(req: dict, last: np.ndarray):
+    """Exactly one of {'shock': ...} or {'event': ...} (or neither = plain forecast). A new run replaces the old."""
+    shock, event = req.get("shock"), req.get("event")
+    if shock is not None and event is not None:
+        raise HTTPException(422, "send either a shock or an event, not both")
+    try:
+        if event is not None:
+            return events.build(event, last)
+        if shock is not None:
+            return shocks.build(shock, last)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return None, None
 
 
 def _compute(req: dict):
@@ -162,7 +170,11 @@ def _compute(req: dict):
     doys = meta.get("forecast_doys", [])
     doys = (doys + [doys[-1] + k for k in range(1, steps + 1)])[:steps] if doys else [meta["doy"] + k for k in range(1, steps + 1)]
     doys = [((d - 1) % 365) + 1 for d in doys]
-    return {"pid": pid, "meta": meta, "steps": steps, "shock": info, "prime": prime, "branch": branch, "diff": diff,
+    ev = {}
+    if info and info.get("kind") == "event":
+        start_b = init[-1] + pert
+        ev = events.metrics(info["type"], start_b, branch, init[-1], prime, *centre, doys, thresholds())
+    return {"event_metrics": ev, "pid": pid, "meta": meta, "steps": steps, "shock": info, "prime": prime, "branch": branch, "diff": diff,
             "truth": truth[:steps], "outcome": outc, "outcome_day0": day0, "fade": fade_summary([day0] + outc),
             "impacts": impact.impacts(prime, branch, doys, meta.get("forecast_months", [])),
             "timing": {"model_calls_s": round(model_s, 3), "server_ms_prime": ms_p, "server_ms_branch": ms_b}}
@@ -210,10 +222,28 @@ def _elevation():
 
 @app.get("/shocks")
 def shock_types():
-    return _json({"types": shocks.TYPES, "parameters": {
-        "lat": "centre latitude, 6-38 N", "lon": "centre longitude, 65-101 E", "radius": "cells (1 cell = 1 deg), 0.5-15, default 4",
-        "strength": "multiplier on the default amplitude, default 1", "variable": f"custom only: one of {geo.CHANNELS}",
-        "amount": "custom only: peak change in physical units"}, "judge_types_ignore_centre": list(shocks.JUDGE_CENTRES)})
+    return _json({"types": shocks.TYPES, "names": shocks.NAMES, "boxes": shocks.BOXES, "parameters": {
+        "lat": "custom: centre latitude, 6-38 N", "lon": "custom: centre longitude, 65-101 E", "radius": "custom: cells (1 cell = 1 deg), 0.5-15, default 4",
+        "variable": f"custom only: one of {geo.CHANNELS}", "amount": "custom only: peak change in physical units"},
+        "judge_types_ignore_centre": list(shocks.JUDGE_CENTRES)})
+
+
+@app.get("/events")
+def list_events():
+    meta, _ = events.catalogue()
+    return _json([{k: m[k] for k in ("id", "name", "description", "source_date", "centre", "radius_cells", "signature")} for m in meta.values()])
+
+
+@app.post("/event/preview")
+def event_preview(req: dict):
+    init, _ = preset_arrays(req.get("preset_id"))
+    try:
+        d, info = events.build(req.get("event") or {}, init[-1])
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    centre = (info["centre"]["lat"], info["centre"]["lon"])
+    return _json({"event": info, "perturbation": _r(d), "thresholds": thresholds(),
+                  "outcome_day0": outcome_day(init[-1], init[-1] + d, 0, *centre)})
 
 
 @app.post("/shock/preview")
@@ -235,7 +265,7 @@ def run(req: dict):
     fields = bool(req.get("include_fields", True))
     out = {"preset": res["meta"], "steps": res["steps"], "shock": res["shock"], "outcome": res["outcome"],
            "outcome_day0": res["outcome_day0"], "fade": res["fade"], "thresholds": thresholds(),
-           "impacts": res["impacts"], "timing": res["timing"]}
+           "event_metrics": res["event_metrics"], "impacts": res["impacts"], "timing": res["timing"]}
     if fields:
         out.update(prime=_r(res["prime"]), branch=_r(res["branch"]), difference=_r(res["diff"]), truth=_r(res["truth"]))
     return _json(out)
@@ -262,7 +292,8 @@ async def stream(ws: WebSocket):
                                                "truth": _r(res["truth"][d]) if d < len(res["truth"]) else None,
                                                "outcome": res["outcome"][d]}, separators=(",", ":")))
                 if gap: await asyncio.sleep(gap)
-            await ws.send_text(json.dumps({"type": "done", "impacts": res["impacts"], "timing": res["timing"], "fade": res["fade"]}))
+            await ws.send_text(json.dumps({"type": "done", "impacts": res["impacts"], "timing": res["timing"], "fade": res["fade"],
+                                           "event_metrics": res["event_metrics"]}))
     except WebSocketDisconnect:
         return
 
