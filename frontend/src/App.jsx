@@ -207,10 +207,12 @@ export default function App() {
 
       {panel === 'earth' && <Panel title="Earth · starting data" acc="121,135,110" label="Earth">
         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>Choose the real start state. The model then forecasts the next 10 days from it.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
         {presets.map(p => <button key={p.id} type="button" aria-pressed={p.id === pid} onClick={() => { setPid(p.id); setPanel(null); }}
-          style={{ ...btn, textAlign: 'left', padding: '8px 10px', ...chip(p.id === pid) }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span className="fred" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span><span className="mono" style={{ color: 'var(--text-faint)' }}>{nice(p.last_input_day)}</span></div>
+          style={{ ...btn, textAlign: 'left', padding: '10px 12px', flexShrink: 0, ...chip(p.id === pid) }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span className="fred" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span><span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-faint)' }}>{nice(p.last_input_day)}</span></div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div></button>)}
+        </div>
         <button type="button" onClick={backToEarth} disabled={!run} style={{ ...btn, minHeight: 40, fontWeight: 600, ...chip(true), opacity: run ? 1 : 0.45 }}>Back to Earth (clear the event or shock)</button>
       </Panel>}
 
