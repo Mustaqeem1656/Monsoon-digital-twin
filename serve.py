@@ -7,14 +7,16 @@ The model (model/runtime.py) loads once on CPU with 4 threads in a background th
 while loading. Torch weights are preferred; ONNX (onnxruntime) is the fallback. JSON is parsed and written by hand
 (no FastAPI encoders) to keep each call fast. Nothing is written to disk.
 """
-import argparse, json, logging, threading, time
+import argparse, json, logging, sys, threading, time
+from pathlib import Path
 
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from model.runtime import load_engine
+sys.path.insert(0, str(Path(__file__).resolve().parent))          # find backend/ next to this file, whatever the cwd
+from backend.model.runtime import load_engine  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("monsoon")

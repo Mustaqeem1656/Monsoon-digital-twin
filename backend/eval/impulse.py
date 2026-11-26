@@ -1,5 +1,5 @@
 """Impulse test: poke ONE grid cell and measure how far the day-1 response reaches (locality / speed-limit check).
-  python -m eval.impulse            (uses weights/model.pt)
+  python -m backend.eval.impulse            (uses backend/weights/model.pt)
 """
 from __future__ import annotations
 import sys
@@ -8,15 +8,15 @@ from pathlib import Path
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from eval.baselines import load_data, load_std  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from backend.eval.baselines import load_data, load_std  # noqa: E402
 
 
 @torch.inference_mode()
 def report(model, i0=16, j0=18, tol=1e-3):
     data, _, _ = load_data(); std = load_std()
     init = data[200:203].copy()                                    # any real 3-day window
-    from model.inference import simulate
+    from backend.model.inference import simulate
     sc = [float(np.sin(2 * np.pi * 180 / 365)), float(np.cos(2 * np.pi * 180 / 365))]
     base = simulate(init, sc, 3, None, model=model)
     pert = np.zeros(init.shape[1:], "f4"); pert[:, i0, j0] = std           # +1 std in every channel at one cell
@@ -34,5 +34,5 @@ def report(model, i0=16, j0=18, tol=1e-3):
 
 
 if __name__ == "__main__":
-    from model.inference import get_model
+    from backend.model.inference import get_model
     report(get_model())

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "india_climate_train.nc"
 CACHE = ROOT / "cache" / "gateway"
 META = Path(__file__).resolve().parent / "presets" / "presets.json"     # committed: names/descriptions only
@@ -39,8 +39,8 @@ def build(force: bool = False) -> Path:
     if not DATA.exists():
         raise FileNotFoundError(MISSING)
     sys.path.insert(0, str(ROOT))
-    from eval.baselines import load_data, train_climatology, VAL_YEARS
-    from eval.local_grader import pick_windows
+    from backend.eval.baselines import load_data, train_climatology, VAL_YEARS
+    from backend.eval.local_grader import pick_windows
     data, dates, _ = load_data()
     best = {}
     for label, t, sc in pick_windows(0, with_scores=True):

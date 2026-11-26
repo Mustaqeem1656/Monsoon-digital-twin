@@ -1,5 +1,5 @@
 """Build gateway/static/regions.json: a 0.05 deg region raster (Indian states + neighbouring countries) as compact RLE.
-  python tools/build_geography.py <download_dir>
+  python backend/tools/build_geography.py <download_dir>
 <download_dir> must hold DataMeet `states.geojson` (github.com/datameet/maps) and the Natural Earth India point-of-view
 admin-0 shapefile `ne/ne_10m_admin_0_countries_ind.*` (naturalearthdata.com). Laptop only (needs matplotlib + pyshp).
 Codes: 0 = sea / outside, 1..N = Indian states (DataMeet), then neighbouring countries (Natural Earth, India POV).
@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 from matplotlib.path import Path as MPath
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "gateway" / "static" / "regions.json"
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "backend" / "gateway" / "static" / "regions.json"
 LAT0, LON0, RES, NR, NCOL = 6.0, 65.0, 0.05, 640, 720        # covers the model grid 6..38 N, 65..101 E exactly
 NEIGHBOURS = ["Pakistan", "China", "Nepal", "Bhutan", "Bangladesh", "Myanmar", "Sri Lanka", "Afghanistan", "India"]
 FIX = {"Arunanchal Pradesh": "Arunachal Pradesh", "Andaman & Nicobar Island": "Andaman & Nicobar Islands",

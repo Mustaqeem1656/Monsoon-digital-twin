@@ -1,5 +1,5 @@
 """One-off data exploration (laptop only; needs matplotlib, which is NOT used at judging).
-  python tools/explore.py   -> prints stats, writes PNGs to tools/plots/
+  python backend/tools/explore.py   -> prints stats, writes PNGs to tools/plots/
 """
 from __future__ import annotations
 import sys
@@ -10,12 +10,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from monsoon_r1 import contract as C, scoring as S   # noqa: E402
-from eval.baselines import load_data, load_std      # noqa: E402
+from backend.eval.baselines import load_data, load_std      # noqa: E402
 
-OUT = ROOT / "tools" / "plots"; OUT.mkdir(parents=True, exist_ok=True)
+OUT = ROOT / "backend" / "tools" / "plots"; OUT.mkdir(parents=True, exist_ok=True)
 data, dates, static = load_data(); std = load_std()
 ext = [C.LON[0] - .5, C.LON[-1] + .5, C.LAT[0] - .5, C.LAT[-1] + .5]
 UNITS = ["K", "mm/day", "m/s", "m/s", "Pa", "kg/m2"]

@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from model.net import MonsoonNet
+from backend.model.net import MonsoonNet
 
 WEIGHTS = Path(__file__).resolve().parents[1] / "weights" / "model.pt"
 _MODEL = None

@@ -25,13 +25,15 @@ A fast, physics-aware digital twin of India's daily weather:
 - Repo scan: no weather APIs, no hardcoded dates, no lookup tables or shipped archives of past weather, real training code, weights inside repo (Git LFS ok, < 2 GB). Dashboard code must be separate from server code. Repo must be created during the hackathon (it was).
 
 ## Repo layout (keep to this)
-- `serve.py` (root) — inference server only
-- `model/` network + inference wrapper; `training/` training code; `eval/` baselines + local grader; `weights/` (Git LFS); `tools/` one-off scripts
-- `gateway/` dashboard backend (later); `dashboard/` 3D frontend (later); `brief/` 2-page PDF material
+- `serve.py` (root) — inference server only; imports the model from `backend/model`, weights from `backend/weights` (paths relative to its own file)
+- `training/` (root) — training code + config.yaml; saves to `backend/weights/`
+- `backend/model/` network + inference runtime; `backend/weights/` (Git LFS: *.pt, *.onnx); `backend/eval/` baselines + local grader; `backend/gateway/` dashboard backend; `backend/tools/` one-off scripts
+- `frontend/` 3D dashboard (blueprint in `frontend/blueprint/`); `brief/` 2-page PDF material
+- `data/`, `cache/` at the root, git-ignored. Run modules from the root: `python -m backend.eval.local_grader`, `python -m backend.gateway.app`
 
 ## Working rules
 - The user does not write code; explain each step briefly in plain language (what it does and why) so he understands the system.
 - Work layer by layer. After each layer works, run its check, then `git add` + `git commit` with a clear message, and `git push`.
-- Gateway rules: never write the route text in gateway .py (paths live in gateway/config.json); gateway presets and climatology are built at startup from data/ into git-ignored cache/gateway/ (gateway/presets_builder.py) — no past-weather data is committed anywhere, no exceptions.
-- Never commit `data/*.nc` or `.venv`. All .npy/.npz caches go in git-ignored `cache/` (repo_scan flags arrays with >400 days of 32x36 grids as a weather archive). Never write the route string "/simulate" outside serve.py — repo_scan treats any such file (and its imports) as inference code; eval uses monsoon_r1.client. Never hardcode dates or ship past-weather data in the repo.
+- Gateway rules: never write the route text in gateway .py (paths live in backend/gateway/config.json); gateway presets and climatology are built at startup from data/ into git-ignored cache/gateway/ (backend/gateway/presets_builder.py) — no past-weather data is committed anywhere, no exceptions.
+- Never commit `data/*.nc` or `.venv`. All .npy/.npz caches go in git-ignored `cache/` (repo_scan flags arrays with >400 days of 32x36 grids as a weather archive). Never write the route string "/simulate" outside serve.py — repo_scan treats any such file (and its imports) as inference code; backend/eval uses monsoon_r1.client. Never hardcode dates or ship past-weather data in the repo.
 - Validation split: train 2005–2018, validate 2019–2021. Report every result against persistence and climatology.

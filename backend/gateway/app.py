@@ -1,4 +1,4 @@
-"""Dashboard gateway (separate from serve.py):   python -m gateway.app      (port 8100, see gateway/config.json)
+"""Dashboard gateway (separate from serve.py):   python -m backend.gateway.app      (port 8100, see gateway/config.json)
 
 It never runs the model itself: it forwards requests to the inference server over HTTP (address and endpoint paths
 come from config.json), builds shocks, and turns the two rollouts (Prime = no shock, Branch = with shock) into
@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from gateway import geo, impact, presets_builder, shocks
+from backend.gateway import geo, impact, presets_builder, shocks
 
 HERE = Path(__file__).resolve().parent
 CFG = json.loads((HERE / "config.json").read_text())

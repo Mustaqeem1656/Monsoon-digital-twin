@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-from gateway import geo
+from backend.gateway import geo
 
 HERE = Path(__file__).resolve().parent
 IMD = [("moderate", 15.6, 64.5), ("heavy", 64.5, 115.6), ("very_heavy", 115.6, 204.5), ("extremely_heavy", 204.5, float("inf"))]
@@ -36,7 +36,7 @@ NOTE_HEAT = "Heat-stress index from daily-mean temperature vs climatology. Not a
 
 @lru_cache(maxsize=1)
 def clim():
-    from gateway.presets_builder import CACHE
+    from backend.gateway.presets_builder import CACHE
     z = np.load(CACHE / "clim_pentad.npz"); return z["clim"]          # [73, 2(t2m,tp), 32, 36]
 
 

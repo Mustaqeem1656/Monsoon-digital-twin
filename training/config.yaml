@@ -3,7 +3,7 @@
 seed: 42                    # fixed random seed so a rerun gives the same model
 device: cuda                # "cuda" = train on the GPU; "cpu" works too but is ~20x slower
 amp: true                   # mixed precision (bfloat16) on the GPU: faster, same accuracy for this model size
-out: weights/model.pt       # where the best checkpoint is saved (Git LFS tracks weights/*.pt)
+out: backend/weights/model.pt   # where the best checkpoint is saved (Git LFS tracks backend/weights/*.pt)
 
 model:
   width: 96                 # channels per layer: bigger = smarter but slower (CPU time grows ~ width^2)

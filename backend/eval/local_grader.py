@@ -1,9 +1,9 @@
 """Local copy of the Round-1 judge, built on monsoon_r1.scoring (we never re-implement the scoring maths).
 
 Usage:
-  python -m eval.local_grader --url http://127.0.0.1:8000        # end-to-end through serve.py over HTTP
-  python -m eval.local_grader --model eval.baselines:persistence  # call a Python function directly (fast)
-  python -m eval.local_grader --model serve:simulate
+  python -m backend.eval.local_grader --url http://127.0.0.1:8000        # end-to-end through serve.py over HTTP
+  python -m backend.eval.local_grader --model backend.eval.baselines:persistence  # call a Python function directly (fast)
+  python -m backend.eval.local_grader --model serve:simulate
 
 NOTE: never write the HTTP route string of the server in this file: the judge's repo_scan would then treat this
 file as inference code. All HTTP goes through monsoon_r1.client.
@@ -17,11 +17,11 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from monsoon_r1 import contract as C, scoring as S                     # noqa: E402
 from monsoon_r1 import stats as KS                                      # noqa: E402
 from monsoon_r1.client import call_simulate, wait_ready                 # noqa: E402
-from eval.baselines import VAL_YEARS, load_data, load_std, train_climatology  # noqa: E402
+from backend.eval.baselines import VAL_YEARS, load_data, load_std, train_climatology  # noqa: E402
 
 STEPS = C.SCORE_STEPS
 LEADS = [d - 1 for d in C.LEAD_DAYS]          # day 1, 4, 8 -> indices 0, 3, 7
@@ -204,7 +204,7 @@ def repo_scan_report():
     """Run the judge's repo_scan on a copy of the TRACKED files only (what the judge's clone sees)."""
     import json, shutil, subprocess, tempfile
     from monsoon_r1.repo_scan import scan
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     files = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True).stdout.split()
     with tempfile.TemporaryDirectory() as tmp:
         for f in files:
@@ -223,7 +223,7 @@ def repo_scan_report():
 def main(argv=None):
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--url"); g.add_argument("--model", help="module:function, e.g. eval.baselines:persistence")
+    g.add_argument("--url"); g.add_argument("--model", help="module:function, e.g. backend.eval.baselines:persistence")
     ap.add_argument("--n-random", type=int, default=20)
     ap.add_argument("--shock-bases", type=int, default=1, help="how many event windows to run the 3 shocks on")
     ap.add_argument("--list-windows", action="store_true")

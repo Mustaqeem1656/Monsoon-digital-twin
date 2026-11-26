@@ -1,5 +1,5 @@
 """Export weights/model.pt -> weights/model.onnx (one network step) + weights/norm.json, and check both backends agree.
-  python tools/export_onnx.py        (laptop only; needs the `onnx` package for export)
+  python backend/tools/export_onnx.py        (laptop only; needs the `onnx` package for export)
 """
 from __future__ import annotations
 import json, sys
@@ -8,10 +8,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from model.net import MonsoonNet                       # noqa: E402
-from model import runtime as R                         # noqa: E402
+from backend.model.net import MonsoonNet                       # noqa: E402
+from backend.model import runtime as R                         # noqa: E402
 
 OPSET = 17
 
@@ -39,7 +39,7 @@ def main():
     try:
         import onnxruntime  # noqa: F401
     except ImportError:
-        print("onnxruntime not installed here: run  python tools/export_onnx.py --check  in a venv that has it"); return
+        print("onnxruntime not installed here: run  python backend/tools/export_onnx.py --check  in a venv that has it"); return
 
     # agreement check on a real-looking state: 10-step rollouts through both backends
     rng = np.random.default_rng(1)

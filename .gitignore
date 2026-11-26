@@ -2,7 +2,7 @@
 .venv/
 __pycache__/
 
-tools/plots/
+backend/tools/plots/
 cache/
-gateway/presets/*.npz
-gateway/static/clim_pentad.npz
+backend/gateway/presets/*.npz
+backend/gateway/static/clim_pentad.npz

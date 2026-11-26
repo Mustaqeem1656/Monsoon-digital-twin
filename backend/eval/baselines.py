@@ -16,7 +16,7 @@ import numpy as np
 
 from monsoon_r1 import stats as KS
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DATA_NC = ROOT / "data" / "india_climate_train.nc"
 TRAIN_YEARS = range(2005, 2019)
 VAL_YEARS = range(2019, 2022)

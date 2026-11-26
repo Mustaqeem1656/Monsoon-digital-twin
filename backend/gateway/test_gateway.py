@@ -1,5 +1,5 @@
 """End-to-end gateway test. Start the inference server (port 8000) and the gateway (port 8100) first, then:
-  python -m gateway.test_gateway
+  python -m backend.gateway.test_gateway
 Checks: every shock type through /run, finite outputs, zero-amount shock -> zero difference, judge shocks identical to
 the kit's make_shock, bad centres rejected, region lookup, WebSocket stream, and timing of a full /run."""
 from __future__ import annotations
@@ -30,7 +30,7 @@ def main():
     s, h = call("/health"); check(s == 200 and h["inference_server"]["ready"], f"/health: inference server ready ({h})")
     s, pres = call("/presets"); check(s == 200 and len(pres) >= 6, f"/presets lists {len(pres)} presets")
     pid = next(p["id"] for p in pres if p["id"] == "heavy-rain")
-    from gateway import geo
+    from backend.gateway import geo
     for (la, lo), want in {(19.07, 72.88): "Maharashtra", (28.61, 77.21): "NCT of Delhi", (22.57, 88.36): "West Bengal",
                            (31.55, 74.34): "Pakistan", (13.08, 80.27): "Tamil Nadu", (15.0, 85.0): "Sea / outside"}.items():
         got = geo.region_at(la, lo); check(got == want, f"region at {la},{lo} = {got} (expect {want})")

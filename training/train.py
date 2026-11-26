@@ -14,8 +14,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from eval.baselines import load_data, load_std      # noqa: E402
-from model.net import MonsoonNet, RAIN              # noqa: E402
+from backend.eval.baselines import load_data, load_std      # noqa: E402
+from backend.model.net import MonsoonNet, RAIN              # noqa: E402
 from monsoon_r1.contract import LAT                 # noqa: E402
 
 
@@ -152,11 +152,11 @@ def main(argv=None):
           f"(val mse {best['val']:.4f}) -> {cfg['out']}")
 
     if cfg.get("grade_after", True):
-        from eval import local_grader, impulse
-        from model import inference
+        from backend.eval import local_grader, impulse
+        from backend.model import inference
         inference.WEIGHTS = ROOT / cfg["out"]; inference._MODEL = None
         impulse.report(inference.get_model())
-        local_grader.grade(local_grader.func_caller("model.inference:simulate"))
+        local_grader.grade(local_grader.func_caller("backend.model.inference:simulate"))
         local_grader.repo_scan_report()
 
 

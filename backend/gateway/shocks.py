@@ -6,7 +6,7 @@ beyond 1.5 x radius so the shock stays local. `strength` scales the default ampl
 from __future__ import annotations
 import numpy as np
 
-from gateway import geo
+from backend.gateway import geo
 
 T2M, TP, U10, V10, MSL, TCWV = range(6)
 BOX_BAY_OF_BENGAL = (8.0, 20.0, 82.0, 94.0)        # the kit's judge boxes (lat_min, lat_max, lon_min, lon_max)

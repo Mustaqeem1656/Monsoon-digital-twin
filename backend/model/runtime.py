@@ -25,7 +25,7 @@ class TorchBackend:
 
     def __init__(self, threads: int = 4):
         import torch
-        from model.net import MonsoonNet
+        from backend.model.net import MonsoonNet
         torch.set_num_threads(threads)
         ck = torch.load(WEIGHTS_DIR / "model.pt", map_location="cpu", weights_only=False)
         m = MonsoonNet(**ck["arch"]); m.load_state_dict(ck["state_dict"]); m.eval()
