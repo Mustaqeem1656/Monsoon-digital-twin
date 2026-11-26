@@ -1,0 +1,30 @@
+{
+ "points": 15.0,
+ "anti_cheat_points": 8.0,
+ "code_health_points": 7.0,
+ "flags": [],
+ "health": {
+  "training_pipeline": true,
+  "frontend_present": true,
+  "server_separate_from_ui": true,
+  "readme": true,
+  "checkpoint": true
+ },
+ "inference_files": [
+  "backend\\__init__.py",
+  "backend\\eval\\__init__.py",
+  "backend\\eval\\baselines.py",
+  "backend\\eval\\local_grader.py",
+  "backend\\gateway\\__init__.py",
+  "backend\\gateway\\ensemble.py",
+  "backend\\gateway\\events.py",
+  "backend\\gateway\\geo.py",
+  "backend\\gateway\\impact.py",
+  "backend\\gateway\\presets_builder.py",
+  "backend\\gateway\\shocks.py",
+  "backend\\model\\__init__.py",
+  "backend\\model\\net.py",
+  "backend\\model\\runtime.py",
+  "serve.py"
+ ]
+}

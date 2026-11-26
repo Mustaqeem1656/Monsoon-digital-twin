@@ -1,0 +1,21 @@
+device: cuda (NVIDIA GeForce RTX 5050 Laptop GPU)
+model: 0.52 M params, receptive radius 7 cells/day
+[A h=1] epoch   1/30  train loss 0.1927 (mse 0.1877, var 0.1002)  val 8-day mse 0.3516     9.1s  *best*
+[A h=1] epoch   3/30  train loss 0.1429 (mse 0.1384, var 0.0892)  val 8-day mse 0.2955     6.6s  *best*
+[A h=1] epoch   5/30  train loss 0.1297 (mse 0.1257, var 0.0804)  val 8-day mse 0.2793     6.6s  *best*
+[A h=1] epoch  12/30  train loss 0.1093 (mse 0.1061, var 0.0644)  val 8-day mse 0.2688     6.5s  *best*
+[A h=1] epoch  13/30  train loss 0.1075 (mse 0.1044, var 0.0628)  val 8-day mse 0.2611     6.4s  *best*
+[A h=1] epoch  15/30  train loss 0.1041 (mse 0.1011, var 0.0596)  val 8-day mse 0.2568     6.4s  *best*
+[A h=1] epoch  21/30  train loss 0.0938 (mse 0.0914, var 0.0474)  val 8-day mse 0.2560     6.4s  *best*
+[A h=1] epoch  25/30  train loss 0.0891 (mse 0.0870, var 0.0417)  val 8-day mse 0.2515     6.5s  *best*
+[A h=1] epoch  27/30  train loss 0.0876 (mse 0.0856, var 0.0398)  val 8-day mse 0.2490     5.0s  *best*
+[A h=1] epoch  28/30  train loss 0.0871 (mse 0.0851, var 0.0393)  val 8-day mse 0.2390     5.0s  *best*
+[A h=1] epoch  30/30  train loss 0.0865 (mse 0.0845, var 0.0386)  val 8-day mse 0.2437     5.1s
+[B h=2] epoch   2/6  train loss 0.1441 (mse 0.1398, var 0.0849)  val 8-day mse 0.2218    10.7s  *best*
+[B h=2] epoch   6/6  train loss 0.1311 (mse 0.1276, var 0.0694)  val 8-day mse 0.2262    12.2s
+[B h=4] epoch   1/6  train loss 0.2241 (mse 0.2165, var 0.1524)  val 8-day mse 0.2103    22.2s  *best*
+[B h=4] epoch   6/6  train loss 0.1914 (mse 0.1856, var 0.1157)  val 8-day mse 0.2105    60.9s
+[B h=8] epoch   5/8  train loss 0.2793 (mse 0.2693, var 0.1994)  val 8-day mse 0.2102   319.4s  *best*
+[B h=8] epoch   6/8  train loss 0.2666 (mse 0.2573, var 0.1855)  val 8-day mse 0.2057   332.2s  *best*
+[B h=8] epoch   8/8  train loss 0.2514 (mse 0.2431, var 0.1668)  val 8-day mse 0.2090   338.0s
+training done in 45.3 min; best checkpoint: B h=8 ep6 (val mse 0.2057) -> weights/model.pt

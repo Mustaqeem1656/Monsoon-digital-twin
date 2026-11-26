@@ -1,0 +1,24 @@
+
+== a. dataset vs gateway vs dashboard ==
+  PASS  Heavy-rain spell 2019-07-23: .nc == /presets at 6 places x 6 channels max |diff| 5.0e-04 (gateway rounds to 3 decimals)
+  PASS  Heavy-rain spell: dashboard readout == .nc at 6 places     rain, temp, wind, pressure, moisture all match to rounding
+  PASS  Pre-monsoon heatwave 2019-05-31: .nc == /presets at 6 places x 6 channels max |diff| 5.0e-04 (gateway rounds to 3 decimals)
+  PASS  Pre-monsoon heatwave: dashboard readout == .nc at 6 places rain, temp, wind, pressure, moisture all match to rounding
+  PASS  Western disturbance 2019-02-11: .nc == /presets at 6 places x 6 channels max |diff| 5.0e-04 (gateway rounds to 3 decimals)
+  PASS  Western disturbance: dashboard readout == .nc at 6 places  rain, temp, wind, pressure, moisture all match to rounding
+
+== b. orientation ==
+  PASS  Leh colder than Delhi (July)                               3.6 vs 33.4 °C
+  PASS  July Arabian Sea u10 > 0 (south-west monsoon)              10.7 m/s
+  PASS  July-mean moisture: Bay of Bengal > Rajasthan (2005-2018)  59 vs 54 kg/m²
+  PASS  land-sea mask = 1 at Delhi (gateway and .nc)               0.997
+  PASS  land-sea mask = 0 mid-Bay (gateway and .nc)                0.000
+  PASS  orography high at Leh                                      4904 m
+  PASS  orography ~0 at Chennai                                    25 m
+
+== c. forecast source and units ==
+  PASS  gateway forecast days == serve.py (direct call)            max |diff| 0.0e+00
+  PASS  gateway units are physical (t2m in K, msl in Pa, rain >= 0) t2m 274-310 K, msl 99496-102167 Pa
+  PASS  K->°C conversion only in the dashboard display code        frontend\src\data.js
+
+RESULT: 16/16 PASS

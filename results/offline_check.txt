@@ -1,0 +1,3 @@
+# git grep over tracked files for weather APIs / remote data sources (empty = none)
+# http(s) URLs in code (excluding localhost):
+# end
