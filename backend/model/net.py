@@ -45,9 +45,10 @@ class Block(nn.Module):
 
 
 class MonsoonNet(nn.Module):
-    def __init__(self, width: int = 96, n_blocks: int = 3, static=None, lat=None, mean=None, std=None):
+    def __init__(self, width: int = 96, n_blocks: int = 3, static=None, lat=None, mean=None, std=None, rain_direct: bool = False):
         super().__init__()
-        self.width, self.n_blocks = width, n_blocks
+        self.width, self.n_blocks, self.rain_direct = width, n_blocks, rain_direct
+        # rain_direct: the rain channel is predicted outright (not as a change from yesterday); other channels stay residual
         n_in = 3 * NC + 2 + 2 + 2                          # 3 days x 6 ch, static 2, doy sin/cos 2, lat/lon 2
         self.stem = nn.Conv2d(n_in, width, 3, padding=1, padding_mode="replicate")
         self.blocks = nn.ModuleList(Block(width) for _ in range(n_blocks))
@@ -99,14 +100,19 @@ class MonsoonNet(nn.Module):
         h = self.stem(x)
         for b in self.blocks:
             h = b(h)
-        return self.project(z3[:, -1] + self.head(h))
+        base = z3[:, -1]
+        if self.rain_direct:
+            base = torch.cat([base[:, :RAIN], torch.zeros_like(base[:, RAIN:RAIN + 1]), base[:, RAIN + 1:]], 1)
+        return self.project(base + self.head(h))
 
-    def rollout(self, z3, angle_last, steps: int, noise_std: float = 0.0):
+    def rollout(self, z3, angle_last, steps: int, noise_std: float = 0.0, out_noise: float = 0.0):
         """Autoregressive rollout. angle_last = angle of the LAST input day. Returns [B,steps,6,H,W] normalised."""
         outs = []
         for k in range(steps):
             if noise_std > 0:
                 z3 = z3 + noise_std * torch.randn_like(z3)
             z = self.step(z3, angle_last + 2 * math.pi * (k + 1) / 365.0)
-            outs.append(z); z3 = torch.cat([z3[:, 1:], z[:, None]], 1)
+            outs.append(z)
+            zf = z + out_noise * torch.randn_like(z) if out_noise > 0 else z   # training only: noise on what is fed back
+            z3 = torch.cat([z3[:, 1:], zf[:, None]], 1)
         return torch.stack(outs, 1)

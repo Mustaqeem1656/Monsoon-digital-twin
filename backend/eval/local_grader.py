@@ -114,9 +114,10 @@ def func_caller(spec):
 
 
 # ---- grading ---------------------------------------------------------------------------------------------
-def grade(call, n_random=20, shock_bases=1, verbose=True):
+def grade(call, n_random=20, shock_bases=1, verbose=True, wins=None):
     std = load_std()
-    wins = pick_windows(n_random)
+    wins = pick_windows(n_random) if wins is None else wins
+    null_dev = 0.0
     ss_w, csi_w, blur, sp_day4, times, invalid = [], [], [], [], [], []
     acc = {k: [] for k in ('m', 'p', 'c', 't')}                       # leads-only arrays for the per-channel table
     rows = []
@@ -155,6 +156,7 @@ def grade(call, n_random=20, shock_bases=1, verbose=True):
             shock_res.append((f"{name}@{label}", r))
         nl, w, e = call(init, doy_sc, S.make_shock("null", init[-1], std)); times.append(w)
         null_ok = base is not None and nl is not None and S.null_consistent(base, nl, std)
+        if null_ok: null_dev = max(null_dev, float((np.abs(base - nl) / std[None, :, None, None]).max()))
         null_ok_all &= null_ok
     caus_pts = np.mean([S.causality_points([r for n, r in shock_res[2 * i:2 * i + 2]], null_ok_all)
                         for i in range(len(bases))]) if bases else 0.0
@@ -197,7 +199,9 @@ def grade(call, n_random=20, shock_bases=1, verbose=True):
         print(f"  => estimated model score: {model_pts if gate else 0.0:.1f} / 70  (+ repo 15 + brief 15 judged separately)")
         print(f"  time per call: mean {np.mean(times):.2f}s  max {np.max(times):.2f}s  (limit {C.TIME_LIMIT_S}s)"
               f"{'  TOO SLOW' if max(times) >= C.TIME_LIMIT_S else ''}")
-    return {"forecast": fp, "blur_pts": blur_pts, "caus_pts": caus_pts, "gate": gate, "model_pts": model_pts}
+    return {"forecast": fp, "blur_pts": blur_pts, "caus_pts": caus_pts, "gate": gate, "model_pts": model_pts,
+            "blur_ratios": np.nanmean(np.array(blur), 0) if blur else None, "shocks": shock_res, "null_ok": null_ok_all,
+            "null_dev": null_dev, "beat_p4": beat_p4, "max_s": float(np.max(times)), "mean_s": float(np.mean(times))}
 
 
 def repo_scan_report():
