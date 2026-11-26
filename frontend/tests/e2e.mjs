@@ -109,6 +109,24 @@ const played = Date.now(); await page.getByRole('button', { name: 'Play the 10-d
 ok(/day \+[2-9]/.test(await caption()), 'play advances the timeline: ' + await caption()); await page.getByRole('button', { name: 'Pause the 10-day rollout' }).click();
 await page.getByRole('button', { name: 'Timeline Prime' }).click(); ok(/^Prime/.test(await caption()), 'switch back to the Timeline Prime tab');
 
+// realistic +2 C heatwave at 15N 77E: must show area, reach and states on day 0 and day +1 (Karnataka first)
+await page.getByRole('button', { name: '+ Branch a universe' }).click();
+await page.getByRole('button', { name: 'Heatwave', exact: true }).click();
+await page.locator('input[type=range]').first().fill('2'); await page.locator('input[type=range]').nth(1).fill('3');
+await page.getByRole('button', { name: /Drop it on the map|Dropped at/ }).click(); p = await at(15.0, 77.0); await page.mouse.click(p.x, p.y); await page.waitForTimeout(300);
+await page.getByRole('button', { name: 'Run the shock' }).click();
+await page.waitForFunction(() => /Heatwave · \+2 °C/.test(document.body.innerText), null, { timeout: 30000 });
+await page.getByRole('button', { name: '+10', exact: true }).click();
+await page.waitForFunction(() => /heatwave · day \+10 · model forecast/.test(document.body.innerText), null, { timeout: 30000 });
+const OUT_RE = { Now: /OUTCOME · THE MOMENT IT HITS[\s\S]*?([\d,]+)\s*km reached\s*([\d,.]+)\s*thousand km²[\s\S]*?MOST AFFECTED STATES[^\n]*\n([^\n]+)/,
+  '+1': /OUTCOME · DAY \+1\b[\s\S]*?([\d,]+)\s*km reached\s*([\d,.]+)\s*thousand km²[\s\S]*?MOST AFFECTED STATES[^\n]*\n([^\n]+)/ };
+for (const dayBtn of ['Now', '+1']) {
+  await page.getByRole('button', { name: dayBtn, exact: true }).click(); await page.waitForTimeout(600);
+  const tx = await page.innerText('body'), mm = tx.match(OUT_RE[dayBtn]);
+  ok(!!mm && +mm[1].replace(/,/g, '') > 0 && +mm[2].replace(/,/g, '') > 0 && /^Karnataka/.test(mm[3]), `+2 °C heatwave at 15°N 77°E, ${dayBtn}: ` + (mm ? `${mm[1]} km, ${mm[2]} thousand km², first state ${mm[3].trim()}` : 'missing'));
+}
+await shot('09_heatwave_2C_day1');
+
 // judge shortcut
 await page.getByRole('button', { name: '+ Branch a universe' }).click();
 await page.getByRole('button', { name: 'Judge test · warm Bay of Bengal' }).click();

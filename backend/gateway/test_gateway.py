@@ -77,6 +77,14 @@ def main():
     c = r["impacts"]
     print(f"  crop-water (heavy-rain preset, dry_spell): prime {c['prime']['crop_water']['cropland_stressed_pct']}% "
           f"-> branch {c['branch']['crop_water']['cropland_stressed_pct']}% stressed")
+    s, r = call("/run", {"preset_id": "heavy-rain", "include_fields": False,
+                         "shock": {"type": "heatwave", "lat": 15, "lon": 77, "radius": 3.75, "strength": 0.5}})
+    o0, o1 = r["outcome_day0"], r["outcome"][0]
+    check(o0["cells"] > 0 and o1["cells"] > 0 and o1["top_states"][0]["state"] == "Karnataka",
+          f"+2 C heatwave at 15N 77E: day0 {o0['affected_area_kkm2']} kkm2, day1 {o1['affected_area_kkm2']} kkm2 / {o1['reach_km']:.0f} km, first state {o1['top_states'][0]['state']}")
+    s, r = call("/run", {"preset_id": "heavy-rain", "include_fields": False,
+                         "shock": {"type": "heatwave", "lat": 15, "lon": 77, "radius": 3.75, "strength": 0.2}})
+    check(r["fade"]["faded_by_day"] is not None, f"weak +0.8 C heatwave reports fading: {r['fade']}")
     asyncio.run(ws_test(pid))
     print(f"\n/run wall time (2 model calls + analysis + ~2.5 MB JSON): mean {np.mean(times):.2f}s max {np.max(times):.2f}s")
     print("RESULT:", "all checks passed" if not FAIL else f"{len(FAIL)} FAILED")

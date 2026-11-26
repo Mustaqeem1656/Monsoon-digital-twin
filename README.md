@@ -122,7 +122,7 @@ are set in `backend/gateway/config.json`.
 | `GET /presets`, `GET /presets/{id}` | Six start windows, built at startup from `data/` (onset, heavy rain, heatwave, Bay of Bengal low, western disturbance, quiet): the 3 input days plus the 10 real days that followed |
 | `GET /geography` | Model grid, land mask, orography, and a 0.05° state/country raster (RLE) with names |
 | `GET /shocks`, `POST /shock/preview` | Shock types and parameters; build a shock and see its size in std units, without running the model |
-| `POST /run` | Prime (no shock) and Branch (shock) rollouts, their difference, an outcome per day, and impacts |
+| `POST /run` | Prime (no shock) and Branch (shock) rollouts, their difference, an outcome per day (day 0 to 10), impacts, and the day the shock fades |
 | `WS /stream` | The same as `/run`, sent day by day for the animation |
 
 **Shock types.** All use a Gaussian footprint around the chosen centre (6–38 °N, 65–101 °E), with a radius in cells
@@ -134,6 +134,13 @@ and a strength multiplier:
 - `custom`
 
 A shock larger than 3 std in any channel returns a warning.
+
+**Outcome.** A cell counts as *affected* when any variable changes by at least a physical threshold, set in
+`backend/gateway/config.json`: t2m 0.5 °C, rain 2 mm/day, wind speed 0.5 m/s, pressure 1 hPa, moisture 2 kg/m².
+For each day, the outcome reports the area, how far the change reached from the centre, the peak change of the main
+variable and the most-affected states. If every change later drops below the thresholds, `fade.faded_by_day` says so,
+and the dashboard shows "shock faded by day +N". Check a shock day by day with
+`python backend/tools/outcome_diagnostic.py`.
 
 **Impact indicators** (rules documented in `backend/gateway/impact.py`; screening proxies, *not* official warnings). Each
 returns Prime, Branch and the difference:

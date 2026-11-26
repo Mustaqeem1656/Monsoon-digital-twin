@@ -6,8 +6,9 @@ const RAD = Math.PI / 180;
 const fmt = (x, d) => Number(x).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
 const chip = on => ({ border: '1px solid ' + (on ? 'rgba(127,216,190,0.6)' : 'rgba(159,194,182,0.25)'), background: on ? 'rgba(127,216,190,0.16)' : 'rgba(255,255,255,0.03)' });
 const btn = { minHeight: 36, borderRadius: 10, color: '#E7F2EE', fontSize: 12, cursor: 'pointer' };
-const GW_VAR = { t2m: ['t2m', '°C', 1], tp: ['tp', 'mm/day', 1], u10: ['ws', 'm/s', 1], v10: ['ws', 'm/s', 1], msl: ['msl', 'hPa', 0.01], tcwv: ['tcwv', 'kg/m²', 1] };
-const VAR_NAME = { t2m: 'temperature', tp: 'rain', u10: 'east wind', v10: 'north wind', msl: 'pressure', tcwv: 'moisture' };
+const GW_VAR = { t2m: ['t2m', '°C', 1], tp: ['tp', 'mm/day', 1], ws: ['ws', 'm/s', 1], msl: ['msl', 'hPa', 0.01], tcwv: ['tcwv', 'kg/m²', 1] };
+const VAR_NAME = { t2m: 'temperature', tp: 'rain', ws: 'wind speed', msl: 'pressure', tcwv: 'moisture' };
+const THR_TXT = t => t ? `≥ ${t.t2m} °C, ${t.tp} mm/day, ${t.ws} m/s, ${t.msl / 100} hPa or ${t.tcwv} kg/m²` : '';
 /** Bilinear value of a flat north-first 32x36 grid at (lat, lon). */
 function gridAt(a, la, lo) {
   let gy = 37.5 - la, gx = lo - 65.5; gy = Math.max(0, Math.min(31, gy)); gx = Math.max(0, Math.min(35, gx));
@@ -15,23 +16,6 @@ function gridAt(a, la, lo) {
   return (v(y0, x0) * (1 - fx) + v(y0, x1) * fx) * (1 - fy) + (v(y1, x0) * (1 - fx) + v(y1, x1) * fx) * fy;
 }
 const addDays = (iso, k) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10); };
-
-/** Day-0 outcome (the moment the shock hits), computed from the perturbation with the gateway's own thresholds. */
-function dayZeroOutcome(pert, center, G) {
-  const std = G.std, thr = 0.2; let area = 0, reach = 0, energy = [0, 0, 0, 0, 0, 0];
-  const hit = [];
-  for (let i = 0; i < 32; i++) for (let j = 0; j < 36; j++) {
-    let zm = 0; for (let c = 0; c < 6; c++) zm = Math.max(zm, Math.abs(pert[c][i][j]) / std[c]);
-    if (zm < thr) continue; const la = 6.5 + i, lo = 65.5 + j; hit.push([i, j]);
-    for (let c = 0; c < 6; c++) energy[c] += (pert[c][i][j] / std[c]) ** 2;
-    area += 111.32 * 111.32 * Math.cos(la * RAD);
-    const a = Math.sin((la - center[0]) * RAD / 2) ** 2 + Math.cos(la * RAD) * Math.cos(center[0] * RAD) * Math.sin((lo - center[1]) * RAD / 2) ** 2;
-    reach = Math.max(reach, 12742 * Math.asin(Math.sqrt(a)));
-  }
-  const names = ['t2m', 'tp', 'u10', 'v10', 'msl', 'tcwv'], c = energy.indexOf(Math.max(...energy));
-  let peak = 0; hit.forEach(([i, j]) => { if (Math.abs(pert[c][i][j]) > Math.abs(peak)) peak = pert[c][i][j]; });
-  return { day: 0, affected_area_kkm2: area / 1000, reach_km: reach, main_variable: hit.length ? names[c] : null, peak_change: peak, top_states: [] };
-}
 
 export default function App() {
   const canvasRef = useRef(null), eng = useRef(null);
@@ -95,10 +79,10 @@ export default function App() {
     const spec = shockSpec(scen, cvar, camt, crad, center); setRunning(true); setErr('');
     try {
       const pv = await api.preview(pid, spec);
-      const frames = [addDelta(prime.frames[0], pv.perturbation)], outcome = [dayZeroOutcome(pv.perturbation, mcenter, G)];
+      const frames = [addDelta(prime.frames[0], pv.perturbation)], outcome = [pv.outcome_day0];
       const name = sc.judge ? (scen === 'judge_warm' ? 'Earth-B · warm Bay' : 'Earth-B · Arabian stall') : 'Earth-B · ' + sc.name.toLowerCase();
       const key = isC ? cv.key : sc.key, tile = KEY_TILE[key];
-      const b = { frames, outcome, name, info: pv.shock, title: sc.judge ? sc.name.replace('Judge:', 'Judge test:') : sc.name + ' · ' + amtFmt(camt), where, ms: null };
+      const b = { frames, outcome, name, info: pv.shock, thr: pv.thresholds, title: sc.judge ? sc.name.replace('Judge:', 'Judge test:') : sc.name + ' · ' + amtFmt(camt), where, ms: null };
       setBranch({ ...b }); setUni('b'); setView('diff'); setPanel('outcome'); setPlacing(false); setDay(0);
       setOn(o => ({ ...o, [tile]: true })); setFocus(tile);
       const done = await api.stream(pid, spec, m => { if (m.type === 'day') { b.frames[m.day] = toFrame(m.branch); b.outcome[m.day] = m.outcome; setBranch({ ...b, frames: [...b.frames], outcome: [...b.outcome] }); } });
@@ -138,14 +122,18 @@ export default function App() {
   if (panel === 'outcome' && branch) {
     const o = branch.outcome[day];
     const peakDay = branch.outcome.reduce((b, x, k) => (x && x.reach_km > (branch.outcome[b] ? branch.outcome[b].reach_km : -1) ? k : b), 0);
+    const firstZero = branch.outcome.findIndex((x, k) => k > 0 && x && x.cells === 0 && branch.outcome.slice(0, k).some(y => y && y.cells > 0));
     if (o) {
       const gv = o.main_variable ? GW_VAR[o.main_variable] : null, peak = gv ? o.peak_change * gv[2] : 0;
       const states = (o.top_states || []).map(s => ({ name: s.state, m: s.mean_change * (gv ? gv[2] : 1), n: s.cells }));
       const mxs = Math.max(1e-6, ...states.map(s => Math.abs(s.m)));
       oc = { dayLabel: day === 0 ? 'THE MOMENT IT HITS' : 'DAY +' + day, spread: fmt(Math.round(o.reach_km), 0), area: fmt(Math.round(o.affected_area_kkm2), 0),
-        peak: (peak > 0 ? '+' : '') + peak.toFixed(1), peakUnit: gv ? 'peak Δ ' + VAR_NAME[o.main_variable] + ' ' + gv[1] : 'no change above threshold',
+        peak: (peak > 0 ? '+' : '') + peak.toFixed(1), peakUnit: gv ? 'peak Δ ' + VAR_NAME[o.main_variable] + ' ' + gv[1] : (firstZero > 0 && day >= firstZero ? 'shock faded by day +' + firstZero : 'below thresholds'),
         metric: gv ? ('Δ ' + VAR_NAME[o.main_variable] + ' ' + gv[1]).toUpperCase() : '', states: states.map(s => ({ ...s, w: Math.round(100 * Math.abs(s.m) / mxs), v: (s.m > 0 ? '+' : '') + s.m.toFixed(2) })),
-        none: day === 0 ? 'States are ranked from day +1, once the model has moved the shock.' : (states.length ? '' : 'No Indian state is affected beyond the threshold on this day.'),
+        none: o.cells > 0 ? (states.length ? '' : 'Only sea cells are affected on this day.')
+          : (firstZero > 0 && day >= firstZero ? `Shock faded by day +${firstZero}: every change is now below the thresholds (${THR_TXT(branch.thr)}).`
+            : `No cell changes by ${THR_TXT(branch.thr)} on this day.`),
+        faded: o.cells === 0 && firstZero > 0 && day >= firstZero,
         peakDay: peakDay === 0 ? 'at the start' : 'day +' + peakDay };
     } else oc = { dayLabel: 'DAY +' + day, spread: '…', area: '…', peak: '…', peakUnit: 'model running', metric: '', states: [], none: 'Waiting for the model…', peakDay: '…' };
   }

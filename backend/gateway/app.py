@@ -82,23 +82,54 @@ def preset_arrays(pid: str):
 
 
 # ---- outcome of a shock per day --------------------------------------------------------------------------------
-def outcomes(diff: np.ndarray, lat0: float, lon0: float) -> list[dict]:
-    thr = CFG["affected_threshold_std"]; z = diff / geo.STD[None, :, None, None]
-    dist = geo.distance_km(lat0, lon0); area = geo.cell_area_km2(); res = []
-    for d in range(diff.shape[0]):
-        zm = np.abs(z[d]).max(0); hit = zm >= thr
-        if not hit.any():
-            res.append({"day": d + 1, "affected_area_kkm2": 0.0, "reach_km": 0.0, "main_variable": None,
-                        "peak_change": 0.0, "units": None, "peak_at": None, "top_states": []}); continue
-        energy = [(z[d, c][hit] ** 2).sum() for c in range(6)]; c = int(np.argmax(energy))
-        k = int(np.abs(diff[d, c]).argmax()); i, j = divmod(k, geo.NLON)
-        res.append({"day": d + 1, "affected_area_kkm2": round(float(area[hit].sum()) / 1e3, 1),
-                    "reach_km": round(float(dist[hit].max()), 0), "main_variable": geo.CHANNELS[c],
-                    "peak_change": round(float(diff[d, c, i, j]), 3), "units": geo.UNITS[c],
-                    "peak_at": {"lat": float(geo.LAT[i]), "lon": float(geo.LON[j]),
-                                "region": geo.region_at(float(geo.LAT[i]), float(geo.LON[j]))},
-                    "top_states": geo.top_states(diff[d, c], hit.astype("f4"))})
-    return res
+OUT_VARS = ["t2m", "tp", "ws", "msl", "tcwv"]                      # variables the outcome looks at
+OUT_UNITS = {"t2m": "K", "tp": "mm/day", "ws": "m/s", "msl": "Pa", "tcwv": "kg/m2"}
+
+
+def thresholds() -> dict:
+    """Physical 'affected' thresholds from config.json, in the gateway's units (msl in Pa)."""
+    t = CFG["affected_thresholds"]
+    return {"t2m": t["t2m_K"], "tp": t["tp_mm_day"], "ws": t["wind_speed_m_s"], "msl": t["msl_hPa"] * 100.0, "tcwv": t["tcwv_kg_m2"]}
+
+
+def _deltas(p: np.ndarray, b: np.ndarray) -> dict:
+    """One day, prime p / branch b [6,32,36] -> per-variable change; wind as change of 10 m wind SPEED."""
+    return {"t2m": b[0] - p[0], "tp": b[1] - p[1], "ws": np.hypot(b[2], b[3]) - np.hypot(p[2], p[3]),
+            "msl": b[4] - p[4], "tcwv": b[5] - p[5]}
+
+
+def outcome_day(p: np.ndarray, b: np.ndarray, day: int, lat0: float, lon0: float) -> dict:
+    """A cell is 'affected' when any variable changes by at least its physical threshold (config.json)."""
+    thr = thresholds(); dl = _deltas(p, b)
+    ratio = {k: np.abs(dl[k]) / thr[k] for k in OUT_VARS}
+    hit = np.max(np.stack(list(ratio.values())), 0) >= 1.0
+    peaks = {k: round(float(np.abs(dl[k]).max()), 3) for k in OUT_VARS}
+    if not hit.any():
+        return {"day": day, "affected_area_kkm2": 0.0, "reach_km": 0.0, "cells": 0, "main_variable": None, "peak_change": 0.0,
+                "units": None, "peak_at": None, "top_states": [], "max_abs_change": peaks}
+    main = max(OUT_VARS, key=lambda k: float((ratio[k][hit] ** 2).sum()))
+    d = dl[main]; k = int(np.abs(d).argmax()); i, j = divmod(k, geo.NLON)
+    return {"day": day, "affected_area_kkm2": round(float(geo.cell_area_km2()[hit].sum()) / 1e3, 1),
+            "reach_km": round(float(geo.distance_km(lat0, lon0)[hit].max()), 0), "cells": int(hit.sum()),
+            "main_variable": main, "peak_change": round(float(d[i, j]), 3), "units": OUT_UNITS[main],
+            "peak_at": {"lat": float(geo.LAT[i]), "lon": float(geo.LON[j]), "region": geo.region_at(float(geo.LAT[i]), float(geo.LON[j]))},
+            "top_states": geo.top_states(d, hit.astype("f4")), "max_abs_change": peaks}
+
+
+def outcomes(prime: np.ndarray, branch: np.ndarray, lat0: float, lon0: float, first_day: int = 1) -> list[dict]:
+    return [outcome_day(prime[d], branch[d], d + first_day, lat0, lon0) for d in range(prime.shape[0])]
+
+
+def fade_summary(out: list[dict]) -> dict:
+    """Day the shock first drops below every threshold after having been visible (None if it never fades)."""
+    seen, faded = False, None
+    for o in out:
+        if o["cells"] > 0:
+            seen, faded = True, None
+        elif seen and faded is None:
+            faded = o["day"]
+    last = max([o["day"] for o in out if o["cells"] > 0], default=None)
+    return {"last_affected_day": last, "faded_by_day": faded}
 
 
 def _prepare(req: dict):
@@ -126,11 +157,13 @@ def _compute(req: dict):
     model_s = time.perf_counter() - t0
     diff = branch - prime
     centre = (info["centre"]["lat"], info["centre"]["lon"]) if info else (20.0, 80.0)
+    day0 = outcome_day(init[-1], init[-1] + (pert if pert is not None else 0), 0, *centre)
+    outc = outcomes(prime, branch, *centre)
     doys = meta.get("forecast_doys", [])
     doys = (doys + [doys[-1] + k for k in range(1, steps + 1)])[:steps] if doys else [meta["doy"] + k for k in range(1, steps + 1)]
     doys = [((d - 1) % 365) + 1 for d in doys]
     return {"pid": pid, "meta": meta, "steps": steps, "shock": info, "prime": prime, "branch": branch, "diff": diff,
-            "truth": truth[:steps], "outcome": outcomes(diff, *centre),
+            "truth": truth[:steps], "outcome": outc, "outcome_day0": day0, "fade": fade_summary([day0] + outc),
             "impacts": impact.impacts(prime, branch, doys, meta.get("forecast_months", [])),
             "timing": {"model_calls_s": round(model_s, 3), "server_ms_prime": ms_p, "server_ms_branch": ms_b}}
 
@@ -166,7 +199,7 @@ def geography():
                   "land_sea_mask": _r(g["lsm"]), "orography_m": _r(g["orography_m"]),
                   "regions": {k: m[k] for k in ("lat0", "lon0", "res", "nrows", "ncols", "row_order", "names", "rle",
                                                 "indian_state_codes", "sources")},
-                  "cell_region": major.tolist(), "elevation": _elevation()})
+                  "cell_region": major.tolist(), "elevation": _elevation(), "affected_thresholds": thresholds()})
 
 
 @lru_cache(maxsize=1)
@@ -190,7 +223,9 @@ def shock_preview(req: dict):
         d, info = shocks.build(req.get("shock") or {}, init[-1])
     except ValueError as e:
         raise HTTPException(422, str(e))
-    return _json({"shock": info, "perturbation": _r(d)})
+    centre = (info["centre"]["lat"], info["centre"]["lon"])
+    return _json({"shock": info, "perturbation": _r(d), "thresholds": thresholds(),
+                  "outcome_day0": outcome_day(init[-1], init[-1] + d, 0, *centre)})
 
 
 @app.post("/run")
@@ -199,6 +234,7 @@ def run(req: dict):
     res["timing"]["total_s"] = round(time.perf_counter() - t0, 3)
     fields = bool(req.get("include_fields", True))
     out = {"preset": res["meta"], "steps": res["steps"], "shock": res["shock"], "outcome": res["outcome"],
+           "outcome_day0": res["outcome_day0"], "fade": res["fade"], "thresholds": thresholds(),
            "impacts": res["impacts"], "timing": res["timing"]}
     if fields:
         out.update(prime=_r(res["prime"]), branch=_r(res["branch"]), difference=_r(res["diff"]), truth=_r(res["truth"]))
@@ -217,7 +253,8 @@ async def stream(ws: WebSocket):
                 res = await asyncio.get_running_loop().run_in_executor(None, _compute, req)
             except HTTPException as e:
                 await ws.send_text(json.dumps({"type": "error", "status": e.status_code, "detail": e.detail})); continue
-            await ws.send_text(json.dumps({"type": "start", "preset": res["meta"], "steps": res["steps"], "shock": res["shock"]}))
+            await ws.send_text(json.dumps({"type": "start", "preset": res["meta"], "steps": res["steps"], "shock": res["shock"],
+                                           "outcome_day0": res["outcome_day0"], "thresholds": thresholds()}))
             gap = max(0.0, float(req.get("interval_ms", 0)) / 1000.0)
             for d in range(res["steps"]):
                 await ws.send_text(json.dumps({"type": "day", "day": d + 1, "prime": _r(res["prime"][d]),
@@ -225,7 +262,7 @@ async def stream(ws: WebSocket):
                                                "truth": _r(res["truth"][d]) if d < len(res["truth"]) else None,
                                                "outcome": res["outcome"][d]}, separators=(",", ":")))
                 if gap: await asyncio.sleep(gap)
-            await ws.send_text(json.dumps({"type": "done", "impacts": res["impacts"], "timing": res["timing"]}))
+            await ws.send_text(json.dumps({"type": "done", "impacts": res["impacts"], "timing": res["timing"], "fade": res["fade"]}))
     except WebSocketDisconnect:
         return
 

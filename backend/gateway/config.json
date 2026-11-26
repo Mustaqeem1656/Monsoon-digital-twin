@@ -7,6 +7,6 @@
  "cors_origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173",
                   "http://localhost:8080", "http://127.0.0.1:8080"],
  "cors_origin_regex": "^https?://(localhost|127\\.0\\.0\\.1)(:\\d+)?$",
- "affected_threshold_std": 0.2,
+ "affected_thresholds": {"t2m_K": 0.5, "tp_mm_day": 2.0, "wind_speed_m_s": 0.5, "msl_hPa": 1.0, "tcwv_kg_m2": 2.0},
  "round_decimals": 3
 }
