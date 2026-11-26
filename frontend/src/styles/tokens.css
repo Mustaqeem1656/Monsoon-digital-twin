@@ -2,8 +2,15 @@
    --text-muted and --text-faint are darker than the design values (#5C6651, #66735C) so small text keeps
    WCAG AA 4.5:1 even where black space shows through the 0.78 cream panel. */
 :root {
-  --panel-bg: rgba(247,247,229,0.78);
-  --panel-blur: blur(8px) saturate(1.1);
+  /* Liquid Glass. Design values 0.55 / 0.68 fail WCAG AA for small text over night and space backdrops (measured
+     2.35-4.1:1); 0.77 is the lowest opacity where every text token passes 4.5:1 day and night. */
+  --panel-bg: rgba(247,247,229,0.77);
+  --panel-bg-dense: rgba(247,247,229,0.77);        /* panels with dense numbers: Outcome, Impact strip */
+  --panel-blur: blur(22px) saturate(1.6);
+  --panel-border: rgba(255,255,255,0.38);
+  --panel-sheen: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 40%);
+  --card-bg: rgba(255,255,255,0.28);               /* inner cards / chips: no blur of their own */
+  --card-border: rgba(255,255,255,0.35);
   --accent: #79876E;
   --text-strong: #2F3629;
   --text: #3E4636;
@@ -15,9 +22,9 @@
   --track: rgba(121,135,110,0.25);
   --warn: #764011;
   --panel-radius: 12px;
-  --panel-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  --panel-shadow: inset 0 1px 0 rgba(255,255,255,0.65), inset 0 -1px 0 rgba(62,70,54,0.10), 0 10px 30px rgba(0,0,0,0.28);
 }
 /* no backdrop blur available -> a more opaque cream so text stays readable */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root { --panel-bg: rgba(247,247,229,0.90); }
+  :root { --panel-bg: rgba(247,247,229,0.90); --panel-bg-dense: rgba(247,247,229,0.90); --panel-blur: none; }
 }

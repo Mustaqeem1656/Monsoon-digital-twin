@@ -5,7 +5,7 @@ import { api, prepGeo, toFrame, addDelta, diffFrame, LAYERS, TILES, TIMES, SHOCK
 const RAD = Math.PI / 180;
 const fmt = (x, d) => Number(x).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
 const sgn = (x, d) => (x > 0 ? '+' : '') + fmt(x, d);
-const chip = (on, acc) => ({ border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--hairline)'), background: on ? 'var(--accent-soft)' : 'transparent' });
+const chip = (on, acc) => ({ border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--card-border)'), background: on ? 'var(--accent-soft)' : 'var(--card-bg)' });
 const btn = { minHeight: 36, borderRadius: 10, color: 'var(--text)', fontSize: 12, cursor: 'pointer' };
 const primary = { border: 'none', background: 'var(--accent)', color: '#FFFFFF' };              // flat primary button
 const TEAL = '121,135,110', AMBER = '121,135,110';   // accents now come from the tokens (sage)
@@ -198,11 +198,11 @@ export default function App() {
     <div style={{ position: 'relative', height: '100vh', minHeight: 680, overflow: 'hidden', background: '#02050A' }}>
       <canvas ref={canvasRef} aria-label="Interactive 3D Earth centred on India with the Sun, Moon and planets in their real directions. Drag to orbit, scroll to zoom, shift-drag or right-drag to roll."
         role="img" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', cursor: 'grab', touchAction: 'none' }} />
-      {tip && <div style={{ position: 'absolute', left: tip.x, top: tip.y, transform: 'translate(18px,18px)', pointerEvents: 'none', minWidth: 200, padding: '10px 12px', borderRadius: 12, background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', backdropFilter: 'var(--panel-blur)', WebkitBackdropFilter: 'var(--panel-blur)', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 3 }}>
+      {tip && <div className="glass" style={{ position: 'absolute', left: tip.x, top: tip.y, transform: 'translate(18px,18px)', pointerEvents: 'none', minWidth: 200, padding: '10px 12px', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 3 }}>
         <span className="fred" style={{ fontWeight: 600, fontSize: 14, letterSpacing: '0.05em', color: 'var(--text-strong)' }}>{tip.region}</span>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tip.ll}</span>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-strong)' }}>{tip.elev}</span></div>}
-      {placeFor && <div role="status" style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', zIndex: 4, pointerEvents: 'none', padding: '10px 16px', borderRadius: 999, background: 'var(--panel-bg)', border: '1px solid var(--accent-edge)', boxShadow: 'var(--panel-shadow)', backdropFilter: 'var(--panel-blur)', WebkitBackdropFilter: 'var(--panel-blur)', color: 'var(--text-strong)', fontSize: 13 }}>Click anywhere in the study area (6–38°N, 65–101°E) · the ring shows the size</div>}
+      {placeFor && <div role="status" className="glass" style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', zIndex: 4, pointerEvents: 'none', padding: '10px 16px', borderRadius: 999, border: '1px solid var(--accent-edge)', color: 'var(--text-strong)', fontSize: 13 }}>Click anywhere in the study area (6–38°N, 65–101°E) · the ring shows the size</div>}
 
       {panel === 'earth' && <Panel title="Earth · starting data" acc="121,135,110" label="Earth">
         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>Choose the real start state. The model then forecasts the next 10 days from it.</p>
@@ -281,7 +281,7 @@ export default function App() {
       </section>}
 
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', zIndex: 2 }}>
-        <header style={{ pointerEvents: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 22px', padding: '10px 20px', margin: '8px 12px 0', borderRadius: 'var(--panel-radius)', background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', color: 'var(--text)', backdropFilter: 'var(--panel-blur)', WebkitBackdropFilter: 'var(--panel-blur)' }}>
+        <header className="glass" style={{ pointerEvents: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 22px', padding: '10px 20px', margin: '8px 12px 0', borderRadius: 'var(--panel-radius)', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" style={{ color: 'var(--accent)' }}><circle cx="13" cy="13" r="11.5" stroke="currentColor" strokeWidth="1.4" /><ellipse cx="13" cy="13" rx="5" ry="11.5" stroke="currentColor" strokeOpacity="0.55" /><path d="M2 13h22" stroke="currentColor" strokeOpacity="0.55" /></svg>
             <div><div className="fred" style={{ fontWeight: 600, fontSize: 16, letterSpacing: '0.16em', color: 'var(--text-strong)' }}>MONSOON DIGITAL TWIN</div>
@@ -313,7 +313,7 @@ export default function App() {
             <section aria-label="Layers and view" className="glass" style={{ pointerEvents: 'auto', width: 300, maxWidth: '100%', padding: 12, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span className="cap">MAP LAYERS · TURN ON ANY COMBINATION</span>
               <div role="group" aria-label="Map layers" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 6 }}>
-                {TILES.map(t => { const o = !!on[t.id]; return <button key={t.id} type="button" aria-pressed={o} onClick={() => pickTile(t)} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 4, borderRadius: 10, border: '2px solid ' + (o ? 'var(--accent)' : 'var(--hairline)'), background: o ? 'var(--accent-soft)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
+                {TILES.map(t => { const o = !!on[t.id]; return <button key={t.id} type="button" aria-pressed={o} onClick={() => pickTile(t)} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 4, borderRadius: 10, border: '2px solid ' + (o ? 'var(--accent)' : 'var(--card-border)'), background: o ? 'var(--accent-soft)' : 'var(--card-bg)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
                   <span aria-hidden="true" style={{ display: 'block', height: 38, borderRadius: 7, background: t.thumb, opacity: o ? 1 : 0.45 }} />
                   <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, fontSize: 11, padding: '0 2px' }}><span>{t.name}</span><span style={{ color: 'var(--text-strong)', fontWeight: 600 }}>{o ? 'ON' : ''}</span></span></button>; })}
               </div>
@@ -424,7 +424,7 @@ function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
       const agree = !cf ? '' : imp.has_change ? `${cf.same_direction}/${cf.members} agree` : `${cf.same_level}/${cf.members} agree`;
       return <div key={t.id} style={{ position: 'relative' }}>
         <div role="button" tabIndex={0} aria-pressed={on} data-testid={'impact-' + t.id} onClick={() => pick(t)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && pick(t)}
-          style={{ width: 156, padding: '8px 10px', borderRadius: 12, cursor: t.active ? 'pointer' : 'default', border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--hairline)'), borderLeft: `3px solid rgb(${c})`, background: on ? 'var(--accent-soft)' : undefined, display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
+          style={{ width: 156, padding: '8px 10px', borderRadius: 12, cursor: t.active ? 'pointer' : 'default', border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--card-border)'), borderLeft: `3px solid rgb(${c})`, background: on ? 'var(--accent-soft)' : 'var(--card-bg)', display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
           <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}><span className="cap" style={{ letterSpacing: '0.08em' }}>{t.name.toUpperCase()}</span>
             {t.active && <span data-testid={'level-' + t.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `rgba(${c},0.3)`, color: 'var(--text-strong)' }}>{t.branch.level}</span>}</span>
           {t.active ? <>
