@@ -25,7 +25,8 @@ The model works on a 32 × 36 grid of 1° cells (lat 6.5–37.5 °N, lon 65.5–
 | `tools/explore.py` | One-off data exploration and plots (laptop only). |
 | `tools/export_onnx.py` | Exports `model.pt` → `model.onnx` and checks both give the same output. |
 | `weights/` | `model.pt`, `model.onnx` (Git LFS), `norm.json` (normalisation constants + model name). |
-| `gateway/`, `dashboard/` | Dashboard backend and 3D frontend (coming later; kept separate from the server). |
+| `gateway/` | Dashboard backend (FastAPI, port 8100): presets, shock builder, Prime vs Branch runs, impacts. Talks to `serve.py` over HTTP only. |
+| `dashboard/` | 3D frontend (coming later; kept separate from the server). |
 
 `data/` (the organisers' training archive) is git-ignored and never committed. Caches go in git-ignored `cache/`.
 
@@ -97,6 +98,47 @@ That gives one window per event type per year, plus 20 random windows. It also r
 - time per call
 - the judge's repo scan, run on the tracked files
 
+## Gateway (dashboard backend)
+
+```bash
+python serve.py --port 8000        # inference server
+python -m gateway.app              # gateway on http://127.0.0.1:8100 (settings in gateway/config.json)
+python -m gateway.test_gateway     # end-to-end test of every endpoint and shock type
+```
+
+The gateway never runs the model itself. It calls the inference server over HTTP; the address and endpoint paths
+are set in `gateway/config.json`.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /health` | Gateway status, and whether the inference server is ready |
+| `GET /presets`, `GET /presets/{id}` | Six start windows (onset, heavy rain, heatwave, Bay of Bengal low, western disturbance, quiet): the 3 input days plus the 10 real days that followed |
+| `GET /geography` | Model grid, land mask, orography, and a 0.05° state/country raster (RLE) with names |
+| `GET /shocks`, `POST /shock/preview` | Shock types and parameters; build a shock and see its size in std units, without running the model |
+| `POST /run` | Prime (no shock) and Branch (shock) rollouts, their difference, an outcome per day, and impacts |
+| `WS /stream` | The same as `/run`, sent day by day for the animation |
+
+**Shock types.** All use a Gaussian footprint around the chosen centre (6–38 °N, 65–101 °E), with a radius in cells
+and a strength multiplier:
+- `judge_warm`, `judge_stall` (identical to the kit's `make_shock`)
+- `heatwave`, `warm_sea`
+- `cyclone` (low pressure, counter-clockwise winds, extra moisture and rain)
+- `monsoon_stall`, `rain_burst`, `dry_spell`
+- `custom`
+
+A shock larger than 3 std in any channel returns a warning.
+
+**Impact indicators** (rules documented in `gateway/impact.py`; screening proxies, *not* official warnings). Each
+returns Prime, Branch and the difference:
+- heat-stress index (daily-mean t2m vs the training-years climatology; not an IMD heatwave warning)
+- IMD rain categories (moderate, heavy 64.5, very heavy 115.6, extremely heavy 204.5 mm/day) plus 3-day totals
+- June–September crop-water stress (rain deficit vs climatology, with India land as the cropland proxy)
+- solar proxy (rain-free, low-moisture days)
+- wind-power proxy (10 m speed cubed)
+
+The presets (6 short windows from the validation years) and a pentad climatology of t2m and rain are bundled for
+the dashboard only. They are not used by `serve.py`.
+
 ## Model summary
 
 - **Inputs (26 maps)**:
@@ -156,11 +198,17 @@ server with torch blocked; it served correctly and passed the schema validator.
 - **Scores measured on 2019–2021**: the same years were used to pick the best checkpoint, so they are slightly
   optimistic. The judge's hidden cases are from later years.
 - **Skill fades with lead time**: beyond about a week, skill is close to climatology.
+- **Rain extremes are underpredicted**: the model rarely forecasts more than about 50 mm/day in a 1° cell, while real
+  events reach 250 mm/day. IMD heavy-rain categories are therefore usually empty in forecasts.
 
 ## Data and credits
 
 - **Training data**: the organisers' dataset (`india_climate_train.nc`, derived from ERA5) and the `monsoon_r1` kit
   (API contract, scoring, schema validator, repo scan). Neither is redistributed in this repo.
+- **Region raster** (`gateway/static/regions.json`, built by `tools/build_geography.py`):
+  - Indian state boundaries from [DataMeet](https://github.com/datameet/maps) (CC BY 4.0)
+  - neighbouring countries from [Natural Earth](https://www.naturalearthdata.com/) admin-0, India point of view
+    (public domain)
 - **Dashboard imagery and geography** (used later by `dashboard/`, credited here in advance):
   - Solar System Scope textures, CC BY 4.0
   - Stellarium textures

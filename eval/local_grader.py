@@ -32,7 +32,7 @@ def _box(box):
 
 
 # ---- window selection ------------------------------------------------------------------------------------
-def pick_windows(n_random: int = 20, seed: int = 0):
+def pick_windows(n_random: int = 20, seed: int = 0, with_scores: bool = False):
     """Return list of (label, t) where t is the index of the LAST input day. Inputs t-2..t, truth t+1..t+10."""
     data, dates, static = load_data()
     land = static[0] > 0.5
@@ -63,12 +63,13 @@ def pick_windows(n_random: int = 20, seed: int = 0):
         for yr in VAL_YEARS:
             cand = [t for t in ok if dates[t].year == yr and season(dates[t])]
             if cand:
-                out.append((f"{name}:{yr}", max(cand, key=score)))
+                best = max(cand, key=score)
+                out.append((f"{name}:{yr}", best, float(score(best))) if with_scores else (f"{name}:{yr}", best))
     rng = np.random.default_rng(seed)
-    used = {t for _, t in out}
+    used = {w[1] for w in out}
     pool = [t for t in ok if t not in used]
-    for t in sorted(rng.choice(pool, n_random, replace=False)):
-        out.append(("random", int(t)))
+    for t in sorted(rng.choice(pool, n_random, replace=False)) if n_random else []:
+        out.append(("random", int(t), float("nan")) if with_scores else ("random", int(t)))
     return out
 
 
