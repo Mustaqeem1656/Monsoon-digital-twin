@@ -1,0 +1,3 @@
+﻿data/*.nc
+.venv/
+__pycache__/
