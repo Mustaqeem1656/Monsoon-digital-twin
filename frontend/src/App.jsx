@@ -198,11 +198,11 @@ export default function App() {
     <div style={{ position: 'relative', height: '100vh', minHeight: 680, overflow: 'hidden', background: '#02050A' }}>
       <canvas ref={canvasRef} aria-label="Interactive 3D Earth centred on India with the Sun, Moon and planets in their real directions. Drag to orbit, scroll to zoom, shift-drag or right-drag to roll."
         role="img" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', cursor: 'grab', touchAction: 'none' }} />
-      {tip && <div style={{ position: 'absolute', left: tip.x, top: tip.y, transform: 'translate(18px,18px)', pointerEvents: 'none', minWidth: 200, padding: '10px 12px', borderRadius: 12, background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 3 }}>
+      {tip && <div style={{ position: 'absolute', left: tip.x, top: tip.y, transform: 'translate(18px,18px)', pointerEvents: 'none', minWidth: 200, padding: '10px 12px', borderRadius: 12, background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', backdropFilter: 'var(--panel-blur)', WebkitBackdropFilter: 'var(--panel-blur)', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 3 }}>
         <span className="fred" style={{ fontWeight: 600, fontSize: 14, letterSpacing: '0.05em', color: 'var(--text-strong)' }}>{tip.region}</span>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tip.ll}</span>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-strong)' }}>{tip.elev}</span></div>}
-      {placeFor && <div role="status" style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', zIndex: 4, pointerEvents: 'none', padding: '10px 16px', borderRadius: 999, background: 'var(--panel-bg)', border: '1px solid var(--accent-edge)', boxShadow: 'var(--panel-shadow)', color: 'var(--text-strong)', fontSize: 13 }}>Click anywhere in the study area (6–38°N, 65–101°E) · the ring shows the size</div>}
+      {placeFor && <div role="status" style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', zIndex: 4, pointerEvents: 'none', padding: '10px 16px', borderRadius: 999, background: 'var(--panel-bg)', border: '1px solid var(--accent-edge)', boxShadow: 'var(--panel-shadow)', backdropFilter: 'var(--panel-blur)', WebkitBackdropFilter: 'var(--panel-blur)', color: 'var(--text-strong)', fontSize: 13 }}>Click anywhere in the study area (6–38°N, 65–101°E) · the ring shows the size</div>}
 
       {panel === 'earth' && <Panel title="Earth · starting data" acc="121,135,110" label="Earth">
         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>Choose the real start state. The model then forecasts the next 10 days from it.</p>
@@ -281,7 +281,7 @@ export default function App() {
       </section>}
 
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', zIndex: 2 }}>
-        <header style={{ pointerEvents: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 22px', padding: '10px 20px', margin: '8px 12px 0', borderRadius: 'var(--panel-radius)', background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', color: 'var(--text)', backdropFilter: 'blur(14px)' }}>
+        <header style={{ pointerEvents: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 22px', padding: '10px 20px', margin: '8px 12px 0', borderRadius: 'var(--panel-radius)', background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', color: 'var(--text)', backdropFilter: 'var(--panel-blur)', WebkitBackdropFilter: 'var(--panel-blur)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" style={{ color: 'var(--accent)' }}><circle cx="13" cy="13" r="11.5" stroke="currentColor" strokeWidth="1.4" /><ellipse cx="13" cy="13" rx="5" ry="11.5" stroke="currentColor" strokeOpacity="0.55" /><path d="M2 13h22" stroke="currentColor" strokeOpacity="0.55" /></svg>
             <div><div className="fred" style={{ fontWeight: 600, fontSize: 16, letterSpacing: '0.16em', color: 'var(--text-strong)' }}>MONSOON DIGITAL TWIN</div>

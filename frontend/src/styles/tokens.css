@@ -17,3 +17,7 @@
   --panel-radius: 12px;
   --panel-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
+/* no backdrop blur available -> a more opaque cream so text stays readable */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --panel-bg: rgba(247,247,229,0.90); }
+}
