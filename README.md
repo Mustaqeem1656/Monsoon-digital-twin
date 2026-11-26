@@ -121,18 +121,42 @@ are set in `backend/gateway/config.json`.
 | `GET /health` | Gateway status, and whether the inference server is ready |
 | `GET /presets`, `GET /presets/{id}` | Six start windows, built at startup from `data/` (onset, heavy rain, heatwave, Bay of Bengal low, western disturbance, quiet): the 3 input days plus the 10 real days that followed |
 | `GET /geography` | Model grid, land mask, orography, and a 0.05° state/country raster (RLE) with names |
-| `GET /shocks`, `POST /shock/preview` | Shock types and parameters; build a shock and see its size in std units, without running the model |
+| `GET /events`, `POST /event/preview` | The 5 weather events (real date, centre, signature); build one at any centre and strength and get its warnings, without running the model |
+| `GET /shocks`, `POST /shock/preview` | The 4 shocks; build one and see its size in std units, without running the model |
 | `POST /run` | Prime (no shock) and Branch (shock) rollouts, their difference, an outcome per day (day 0 to 10), impacts, and the day the shock fades |
 | `WS /stream` | The same as `/run`, sent day by day for the animation |
 
-**Shock types.** All use a Gaussian footprint around the chosen centre (6–38 °N, 65–101 °E), with a radius in cells
-and a strength multiplier:
-- `judge_warm`, `judge_stall` (identical to the kit's `make_shock`)
-- `heatwave`, `warm_sea`
-- `cyclone` (low pressure, counter-clockwise winds, extra moisture and rain)
-- `monsoon_stall`, `rain_burst`, `dry_spell`
-- `custom`
+**Weather events** (`GET /events`, `POST /event/preview`, and `event` in `/run` / `/stream`). There are five real
+events from the validation years 2019–2021: monsoon onset, heavy rain, heatwave, cyclone (Amphan, 19 May 2020) and
+western disturbance. At startup the gateway finds each event's peak day and centre in `data/india_climate_train.nc`
+and cuts out its *anomaly* (the peak day minus the 2005–2018 day-of-year climatology) for all six channels, within
+8 cells of the centre, tapered smoothly to zero. The result goes into the git-ignored `cache/`; nothing is committed.
+An event can be:
+- moved to any centre inside 6–38 °N, 65–101 °E
+- scaled from 50 % to 150 % (0 % gives a difference of exactly 0)
+- run like a shock, as a plain forecast versus a forecast with the event
 
+The gateway warns, without blocking, about unrealistic choices:
+- a cyclone over land
+- an onset away from the south-west coast
+- a western disturbance south of 25 °N
+- a heatwave over sea
+- any strength above 120 %
+
+Each event also returns its own results:
+- **Cyclone:** daily track, lowest pressure, strongest wind, and a plain statement when the vortex weakens or loses its
+  round shape.
+- **Heavy rain:** 3-day totals and IMD categories.
+- **Heatwave:** heat-stress area, hottest states and how long it persists.
+- **Monsoon onset:** how far north the rain reaches.
+- **Western disturbance:** rain and temperature change over J&K/Ladakh, Himachal, Uttarakhand and Punjab.
+
+**Shocks** (`GET /shocks`, `POST /shock/preview`). There are exactly four:
+- `judge_warm` (Warm Bay of Bengal) and `judge_stall` (Weaker Arabian Sea winds), identical to the kit's `make_shock`
+- `zero`, which adds nothing and must give a difference of exactly 0
+- `custom`: one variable, an amount, a size and a centre, with a Gaussian footprint
+
+Only one event or shock runs at a time.
 A shock larger than 3 std in any channel returns a warning.
 
 **Outcome.** A cell counts as *affected* when any variable changes by at least a physical threshold, set in
@@ -155,17 +179,34 @@ rules; the windows themselves and the pentad climatology are computed at startup
 
 ## Dashboard (frontend)
 
-A 3D Earth centred on India with terrain relief, and the Sun, Moon and planets in their real positions. It has
-independent map-layer tiles (Terrain, Elevation, Borders, Heat, Rain, Wind, Pressure, Moisture, City lights).
-Weather is drawn only over India and the nearby seas. Hover shows each state, the shock builder offers all 9 gateway
-shock types, and the Earth-B branch view comes with an outcome panel and a 10-day timeline. Everything is live from
+A 3D Earth centred on India with terrain relief, independent map-layer tiles (Terrain, Elevation, Borders, Heat, Rain,
+Wind, Pressure, Moisture, City lights), and weather drawn over India and the nearby seas only. Everything is live from
 the gateway; fonts and textures are bundled, so it works offline.
+
+- **Header**, with three buttons:
+  - **Earth**: choose the start data (6 real start states) or go *Back to Earth*.
+  - **Weather events**: 5 event cards, a strength slider from 50 to 150 %, a drop pointer sized to the event,
+    *Where it really happened*, live plausibility warnings, and Run.
+  - **Shocks**: the 4 shocks. The judge boxes are drawn on the globe, and Zero shock shows *difference: exactly 0*.
+- **Outcome panel**, the single place for results while something runs:
+  - a *With it / Difference / Without* switch
+  - the six core values at the centre and averaged over the affected area (with / without / Δ)
+  - km reached, area, peak change and top states
+  - the event-specific numbers, and a *faded by day +N* note
+  - cyclone tracks drawn on the globe
+- **Current conditions** (top left, when nothing runs): place, lat/lon and the six values under the pointer, for the
+  selected day.
+- **Layers on run:** layers switch on automatically to suit what runs, and are never switched off.
+- **Sky:** the Sun, Moon, planets and day/night follow the scenario date (the start preset plus the timeline day), at
+  Noon, Dusk or Night. *Today (sky only)* shows today's real sky; the weather is never live. The Moon is drawn close
+  (12 Earth radii) so it is visible. It is decoration only.
 
 ```bash
 python serve.py --port 8000          # 1. model server
 python -m backend.gateway.app        # 2. gateway (port 8100)
 cd frontend && npm install && npm run dev    # 3. dashboard at http://127.0.0.1:5173
-npm run test:e2e                     # optional: browser test of every tile and the shock flow
+npm run test:e2e                     # optional: browser test (header, panels, events, shocks, sky, tiles)
+python backend/tools/verify_data.py  # data-accuracy check: dataset vs gateway vs dashboard readout (needs all three running)
 ```
 
 ## Model summary
@@ -227,6 +268,10 @@ server with torch blocked; it served correctly and passed the schema validator.
 - **Scores measured on 2019–2021**: the same years were used to pick the best checkpoint, so they are slightly
   optimistic. The judge's hidden cases are from later years.
 - **Skill fades with lead time**: beyond about a week, skill is close to climatology.
+- **A 1° grid can't hold a tight cyclone vortex**: placed cyclones are smoothed. The model fills the low over a few
+  days and does not move it; the outcome panel says so.
+- **Weather events are anomaly templates**: a real event's pattern is moved and scaled. It is not a new physically
+  balanced storm, so unrealistic placements (flagged by the warnings) give less reliable results.
 - **Rain extremes are underpredicted**: the model rarely forecasts more than about 50 mm/day in a 1° cell, while real
   events reach 250 mm/day. IMD heavy-rain categories are therefore usually empty in forecasts.
 
