@@ -160,7 +160,7 @@ export class GlobeEngine {
   northUp() { this.lookFrom(new T.Vector3(0, 0, 1).applyQuaternion(this.camQ)); }
   resetView() { this.aim(20, 80); this.dist = 2.3; }
   zoomIn() { this.dist = Math.max(1.12, this.dist * 0.85); }
-  zoomOut() { this.dist = Math.min(6, this.dist * 1.18); }
+  zoomOut() { this.dist = Math.min(8.1, this.dist * 1.18); }
   /** Screen position (CSS px, relative to the canvas) of a surface point; used by the browser tests. */
   screenOf(lat, lon) { this.cam.position.set(0, 0, this.dist).applyQuaternion(this.camQ); this.cam.quaternion.copy(this.camQ); this.cam.updateMatrixWorld();
     const p = this.worldOf(lat, lon).project(this.cam), rc = this.cv.getBoundingClientRect(); return { x: rc.left + (p.x + 1) / 2 * rc.width, y: rc.top + (1 - p.y) / 2 * rc.height }; }
@@ -184,7 +184,7 @@ export class GlobeEngine {
         this.camQ.multiply(q); return; }
       this.hover(e.clientX, e.clientY); });
     cv.addEventListener('pointerleave', () => { this.clearLift(); this.cb.onHover && this.cb.onHover(null); });
-    cv.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(e.deltaY * 0.0006), nd = Math.max(1.12, Math.min(6, this.dist * f));
+    cv.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(e.deltaY * 0.0006), nd = Math.max(1.12, Math.min(8.1, this.dist * f));
       if (nd < this.dist) { const h = this.pick(e.clientX, e.clientY); if (h) { const cd0 = new T.Vector3(0, 0, 1).applyQuaternion(this.camQ); const q = new T.Quaternion().setFromUnitVectors(cd0, h.world.clone().normalize()); const qi = new T.Quaternion().slerp(q, Math.min(0.25, (this.dist - nd) / this.dist * 0.9)); this.camQ.premultiply(qi); } }
       this.dist = nd; }, { passive: false });
     cv.addEventListener('dblclick', e => { const h = this.pick(e.clientX, e.clientY); if (h) { this.lookFrom(h.world); this.dist = Math.max(1.3, this.dist * 0.7); } });
