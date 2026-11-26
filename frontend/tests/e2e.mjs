@@ -104,7 +104,7 @@ await shot('13_shocks_panel');
 await page.getByRole('button', { name: 'Zero shock', exact: true }).click(); ok(/difference: exactly 0/.test(await body()), 'Zero shock panel promises "difference: exactly 0"');
 await page.getByRole('button', { name: 'Run the shock' }).click(); await page.waitForFunction(() => /OUTCOME/.test(document.body.innerText), null, { timeout: 30000 }); await waitDone();
 await waitImpact(); { const tx = await impTiles().allInnerTexts(), act = tx.filter(x => !/Off season/.test(x));
-  ok(act.length >= 4 && act.every(x => /Δ 0\.0 vs plain/.test(x)), 'Zero shock: every impact tile shows Δ 0.0 vs plain (' + act.length + ' tiles)');
+  ok(act.length >= 4 && act.every(x => /Δ 0\.0 [^\n]*vs plain/.test(x)), 'Zero shock: every impact tile shows Δ 0.0 vs plain (' + act.length + ' tiles)' + (act.every(x => /Δ 0\.0 [^\n]*vs plain/.test(x)) ? '' : ' ' + JSON.stringify(act)));
   await page.getByTestId('impact-heat').getByRole('button', { name: /Why/ }).click(); await page.waitForTimeout(300);
   ok(/No change/.test(await page.getByTestId('why-heat').innerText()), 'Zero shock: heat "Why?" says No change'); await shot('16_impact_zero_why');
   await page.getByTestId('impact-heat').getByRole('button', { name: /Why/ }).click(); }
@@ -146,6 +146,17 @@ ok(/cloud proxy from moisture and rain/.test(await body()), 'Clouds layer labell
 for (const k of ['Rain', 'Heat']) if (await tileOn(k)) await tile(k).click();
 await page.waitForTimeout(800); await shot('18_clouds_layer');
 await page.getByTestId('impact-solar').click();
+// ---- units, labels, clipping ----
+{ const hm = await page.getByTestId('meaning-heat').innerText(), wv = await page.getByTestId('impact-wind').innerText(), sv = await page.getByTestId('impact-solar').innerText();
+  ok(/above normal for this date/.test(hm) && /W\/m²/.test(wv) && /% of normal/.test(wv) && /normal \d/.test(sv), 'tile units: heat °C above normal, wind W/m² + % of normal, solar vs normal'); }
+ok(await page.evaluate(() => { const g = window.__globe; return g.mask.width === g.G.cols && g.maskAt(28.0, 84.0) === 0 && g.maskAt(31.0, 88.0) === 0 && g.maskAt(30.5, 71.0) === 0 && g.maskAt(23.8, 90.3) === 0 && g.maskAt(23.0, 79.0) === 1; }),
+  'weather mask at 0.05°: zero over Nepal, Tibet, Pakistan, Bangladesh; one over India');
+await page.getByTestId('impact-heat').click(); await page.waitForTimeout(700);
+let hiStat; ok(await page.evaluate(() => { const g = window.__globe, c = g.hiCanvas, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height;
+  let tibet = 0; for (let y = Math.floor((38 - 33) / 32 * H); y < Math.floor((38 - 30) / 32 * H); y++) for (let x = Math.floor((85 - 65) / 36 * W); x < Math.floor((95 - 65) / 36 * W); x++) tibet += d[(y * W + x) * 4 + 3];
+  let edges = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 200) edges++; return [tibet, edges]; }).then(([t, e]) => (hiStat = [t, e], t === 0 && e > 50)), 'highlight is a smooth contour clipped to India (nothing over Tibet)' + (globalThis.hiStat ? '' : ''));
+await shot('19_highlight_contour'); await page.getByTestId('impact-heat').click();
+ok(await page.evaluate(() => { const g = window.__globe; return g.labelSprites.length > 5 && g.labelSprites.filter(l => l.alts).every(l => l.s.visible || !g.view.showPins); }), 'test-pin labels stay visible (moved off the panels)');
 // ---- Moon ----
 const moon = await page.evaluate(() => { const g = window.__globe, m = g.bodies.Moon.grp; return { d: m.position.length(), r: m.children[0].geometry.parameters.radius, ring: !!g.moonRing }; });
 ok(Math.abs(moon.d - 12) < 1e-6 && Math.abs(moon.r - 0.35) < 1e-6 && moon.ring, `Moon at ${moon.d.toFixed(1)} Earth radii, radius ${moon.r}, orbit ring`);

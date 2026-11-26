@@ -24,6 +24,10 @@ def _spot(t) -> str:
 
 def _vs_threshold(t, v, level=None) -> str:
     thr, lv, u = t["thresholds"], t["levels"], t["unit"]
+    if t["id"] == "solar":
+        d = round(v - t["normal"], 1); nxt = [(x, lv[k + 1]) for k, x in enumerate(thr) if d >= x]
+        return (f"{n(d)} points vs normal is not yet {nxt[0][1]} ({nxt[0][1]} means below {n(nxt[0][0])} points)" if nxt
+                else f"{n(d)} points vs normal is in the {lv[len(thr)]} range (below {n(thr[-1])} points)")
     if t["higher_is_worse"]:
         nxt = [(x, lv[k + 1]) for k, x in enumerate(thr) if v < x]
         if nxt:
@@ -54,11 +58,11 @@ def explain(t: dict, conf: dict | None, has_change: bool) -> list[str]:
     out = []
     if not has_change:
         v, d, lv = n(p["value"]), n(t["day"]), p["level"]
-        out.append({"flood": f"Flood risk on the plain forecast: the wettest cell reaches {v} {u} on day {d}, level {lv}.",
-                    "heat": f"Heat stress on the plain forecast: the largest temperature anomaly is {v} {u} on day {d}, level {lv}.",
-                    "crop": f"Crop-water stress on the plain forecast: {v} {u} of cropland ends the forecast with a rain deficit of half or more, level {lv}.",
-                    "solar": f"Solar on the plain forecast: clear, dry days cover {v} {u} of India land on average (fewest on day {d}), solar-loss level {lv}.",
-                    "wind": f"Wind power on the plain forecast averages {v} {u} over India land (highest on day {d}), level {lv}."}[t["id"]])
+        out.append({"flood": lambda: f"Flood risk on the plain forecast: the wettest cell reaches {v} {u} on day {d}, level {lv}.",
+                    "heat": lambda: f"Heat stress on the plain forecast: the hottest India cell is {v} {u} for this date on day {d}, level {lv}.",
+                    "crop": lambda: f"Crop-water stress on the plain forecast: {v} {u} of cropland ends the forecast with a rain deficit of half or more, level {lv}.",
+                    "solar": lambda: f"Solar on the plain forecast: clear, dry days cover {v} {u} of India land on average against a normal of {n(t['normal'])} {u} for these dates ({n(p['vs_normal'])} points), solar-loss level {lv}.",
+                    "wind": lambda: f"Wind power on the plain forecast averages {v} {u} over India land, {n(p['pct_of_normal'])}% of normal for these dates (highest on day {d}), level {lv}."}[t["id"]]())
         out.append(f"Most affected over the whole forecast: {_states(t)}{_spot(t)}.")
         out.append(_vs_threshold(t, p["value"], p["level"])[0].upper() + _vs_threshold(t, p["value"], p["level"])[1:] + ".")
     elif not t["changed"]:

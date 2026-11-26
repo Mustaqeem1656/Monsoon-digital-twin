@@ -134,9 +134,13 @@ crop    (June-September only) daily = cropland rain deficit so far (%) = 100 * (
         India land as cropland proxy.  value = share of cropland (%) whose deficit over the horizon is >= 50 % (and clim
         total >= 10 mm).  level: Low < 10 %, Moderate 10-25 %, High 25-50 %, Severe >= 50 %.
 solar   daily = share of India land (%) with a "good solar day" (rain < 1 mm/day and tcwv < 40 kg/m2).
-        value = mean over the forecast.  level = solar LOSS: Low >= 60 %, Moderate 40-60 %, High 20-40 %, Severe < 20 %.
-wind    daily = mean (10 m wind speed)^3 over India land (m³/s³, proportional to available power).  value = mean.
-        level = wind-power availability: Low < 20, Moderate 20-60, High 60-150, Severe >= 150 (storm-strength winds).
+        value = mean over the forecast; normal = the same share in the training years for the same 5-day periods.
+        level = solar LOSS vs normal (value - normal, percentage points): Low > -5, Moderate -5 to -15,
+        High -15 to -30, Severe < -30.
+wind    daily = India-land mean wind power density at 10 m, 0.5 * 1.225 kg/m3 * speed^3 (W/m2).  value = mean.
+        Also: % of normal (training-years mean for the same 5-day periods).
+        level = wind-power availability: Low < 12, Moderate 12-37, High 37-92, Severe >= 92 W/m2 (storm-strength).
+heat    is shown as degrees C above the normal for the date (an anomaly in K equals one in degrees C).
 Change: delta = with-change value minus plain value; |delta| below NO_CHANGE[tile] counts as "no change".
 Cause:  mean change of the tile's own channel (heat: t2m, flood/crop: rain, wind: wind speed; solar: whichever of rain
         and tcwv is larger in std units) over the cells where the tile's field changed most (top 10 % of |change| on the
@@ -145,19 +149,19 @@ Cause:  mean change of the tile's own channel (heat: t2m, flood/crop: rain, wind
 CH = ["t2m", "tp", "u10", "v10", "msl", "tcwv"]
 LEVELS = ["Low", "Moderate", "High", "Severe"]
 TILES = {
-    "flood": {"name": "Flood risk", "unit": "mm/day", "thresholds": [15.6, 64.5, 115.6], "higher_is_worse": True,
+    "flood": {"name": "Flood risk", "unit": "mm/day", "label": "wettest India cell, daily rain", "thresholds": [15.6, 64.5, 115.6], "higher_is_worse": True,
               "causes": ["tp", "tcwv", "wind"], "layer": "rain"},
-    "heat": {"name": "Heat stress", "unit": "K", "thresholds": [3.0, 5.0], "higher_is_worse": True,
+    "heat": {"name": "Heat stress", "unit": "°C above normal", "label": "hottest India cell vs normal for the date", "thresholds": [3.0, 5.0], "higher_is_worse": True,
              "causes": ["t2m", "tcwv", "wind"], "layer": "heat"},
-    "crop": {"name": "Crop-water stress", "unit": "%", "thresholds": [10.0, 25.0, 50.0], "higher_is_worse": True,
+    "crop": {"name": "Crop-water stress", "unit": "%", "label": "cropland with under half its normal rain", "thresholds": [10.0, 25.0, 50.0], "higher_is_worse": True,
              "causes": ["tp", "tcwv"], "layer": "rain"},
-    "solar": {"name": "Solar", "unit": "%", "thresholds": [60.0, 40.0, 20.0], "higher_is_worse": False,
+    "solar": {"name": "Solar", "unit": "%", "label": "clear, dry share of India land vs normal", "thresholds": [-5.0, -15.0, -30.0], "higher_is_worse": False,
               "causes": ["tp", "tcwv"], "layer": "clouds"},
-    "wind": {"name": "Wind power", "unit": "m³/s³", "thresholds": [20.0, 60.0, 150.0], "higher_is_worse": True,
+    "wind": {"name": "Wind power", "unit": "W/m²", "label": "India-land mean power density at 10 m", "thresholds": [12.0, 37.0, 92.0], "higher_is_worse": True,
              "causes": ["wind", "msl"], "layer": "wind"},
 }
 NO_CHANGE = {"flood": 0.5, "heat": 0.1, "crop": 0.5, "solar": 0.5, "wind": 0.5}
-CAUSE_UNITS = {"t2m": "K", "tp": "mm/day", "wind": "m/s", "msl": "hPa", "tcwv": "kg/m²"}
+CAUSE_UNITS = {"t2m": "°C", "tp": "mm/day", "wind": "m/s", "msl": "hPa", "tcwv": "kg/m²"}
 CAUSE_NAMES = {"t2m": "temperature", "tp": "rain", "wind": "wind speed", "msl": "sea-level pressure", "tcwv": "moisture"}
 CAUSE_STD = {"t2m": 13.4636, "tp": 7.5533, "wind": 2.9, "msl": 6.190198, "tcwv": 20.4944}
 
@@ -168,6 +172,21 @@ def _level(tid: str, value: float, severe_flag: bool = False) -> str:
     if tid == "heat":
         k = 3 if (k == 2 and severe_flag) else k
     return LEVELS[k]
+
+
+RHO_HALF = 0.5 * 1.225
+
+
+@lru_cache(maxsize=1)
+def clim_extra():
+    from backend.gateway.presets_builder import CACHE
+    z = np.load(CACHE / "clim_extra.npz"); return z["good"], z["speed3"]          # [73,32,36] each
+
+
+def normals(doys) -> dict:
+    """Training-years normal over the forecast days: clear-dry share (%) and power density (W/m2), India land."""
+    il, _ = masks(); g, s3 = clim_extra(); idx = [min((int(d) - 1) // 5, 72) for d in doys]
+    return {"solar": 100 * float(g[idx][:, il].mean()), "wind": RHO_HALF * float(s3[idx][:, il].mean())}
 
 
 def _cause_fields(X: np.ndarray) -> dict:
@@ -183,7 +202,7 @@ def _fields(X: np.ndarray, doys, start_doy: int, start: np.ndarray, months) -> d
     anom = np.where(il, t2m - ct, -np.inf)
     sev = (anom >= 5.0) & (t2m >= EXTREME_T)
     good = ((tp < 1.0) & (X[:, 5] < 40.0)).astype("f4")
-    sp3 = np.hypot(X[:, 2], X[:, 3]) ** 3
+    sp3 = RHO_HALF * np.hypot(X[:, 2], X[:, 3]) ** 3
     cf, cc = np.cumsum(tp[1:], 0), np.cumsum(cp[1:], 0)
     deficit = np.concatenate([np.zeros((1,) + tp.shape[1:], "f4"), 100 * (1 - cf / np.maximum(cc, 1e-6))])
     crop_on = any(m in (6, 7, 8, 9) for m in months)
@@ -222,12 +241,17 @@ def _highlight(field: np.ndarray, frac: float = 0.1):
     return [[float(geo.LAT[i]), float(geo.LON[j])] for i, j in zip(ii, jj)]
 
 
+def _level_of(tid, v, f, nrm):
+    """Solar is judged against its normal (percentage points); every other tile on its own value."""
+    return _level(tid, v - nrm["solar"] if tid == "solar" else v, f[tid].get("severe", False))
+
+
 def scalar_tiles(X: np.ndarray, doys, start_doy, months) -> dict:
     """Cheap per-member summary: {tile: (value, level)} for the ensemble."""
-    f = _fields(X, doys, start_doy, X[0], months); out = {}
+    f = _fields(X, doys, start_doy, X[0], months); nrm = normals(doys[:X.shape[0] - 1]); out = {}
     for tid in TILES:
         if tid not in f: continue
-        v = _value(tid, f); out[tid] = (v, _level(tid, v, f[tid].get("severe", False)))
+        v = _value(tid, f); out[tid] = (v, _level_of(tid, v, f, nrm))
     return out
 
 
@@ -235,10 +259,10 @@ def tiles(p_start, b_start, prime, branch, doys, start_doy: int, months) -> list
     """p_start / b_start [6,32,36] = start state without / with the change; prime / branch [S,6,32,36]."""
     XP, XB = np.concatenate([p_start[None], prime]), np.concatenate([b_start[None], branch])
     fp, fb = _fields(XP, doys, start_doy, p_start, months), _fields(XB, doys, start_doy, b_start, months)
-    il, _ = masks(); w = il.astype("f4"); S = prime.shape[0]; out = []
+    il, _ = masks(); w = il.astype("f4"); S = prime.shape[0]; out = []; nrm = normals(doys[:S])
     for tid, t in TILES.items():
         base = {"id": tid, "name": t["name"], "unit": t["unit"], "layer": t["layer"], "thresholds": t["thresholds"],
-                "higher_is_worse": t["higher_is_worse"], "levels": LEVELS,
+                "higher_is_worse": t["higher_is_worse"], "levels": LEVELS, "label": t["label"],
                 "no_change_margin": NO_CHANGE[tid]}
         if tid not in fp:
             out.append({**base, "active": False, "reason": "crop-water stress is evaluated only for June-September forecasts"}); continue
@@ -271,11 +295,16 @@ def tiles(p_start, b_start, prime, branch, doys, start_doy: int, months) -> list
             if not t["higher_is_worse"]: hot = [{**h, "value": round(-h["value"], 1)} for h in hot]
             hl = _highlight(fp[tid]["cell"][dd] if t["higher_is_worse"] else 100 - fp[tid]["cell"][dd]); cause = None
         tile = {**base, "active": True,
-                "prime": {"value": vp, "level": _level(tid, vp, fp[tid].get("severe", False)), "series": sp},
-                "branch": {"value": vb, "level": _level(tid, vb, fb[tid].get("severe", False)), "series": sb},
+                "prime": {"value": vp, "level": _level_of(tid, vp, fp, nrm), "series": sp},
+                "branch": {"value": vb, "level": _level_of(tid, vb, fb, nrm), "series": sb},
                 "delta": delta, "delta_series": dseries, "direction": direction, "changed": changed, "day": dd,
                 "top_states": [{"state": x["state"], "value": round(x["value"], 1)} for x in states],
                 "hotspots": hot, "highlight": hl, "cause": cause}
+        if tid in nrm:
+            nv = round(nrm[tid], 1); tile["normal"] = nv
+            for k, v in (("prime", vp), ("branch", vb)):
+                tile[k]["vs_normal"] = round(v - nv, 1)
+                if tid == "wind": tile[k]["pct_of_normal"] = round(100 * v / max(nv, 1e-6))
         if tid == "heat":
             tile["severe_t2m_C"] = round(EXTREME_T - 273.15, 1)
         if tid == "flood":

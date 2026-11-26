@@ -64,6 +64,13 @@ export default function App() {
     const ph = () => api.health().then(setHealth).catch(() => setHealth(null)); ph(); const hi = setInterval(ph, 10000);
     return () => { clearInterval(hi); e.dispose(); };
   }, []);
+  useEffect(() => {                                        // labels on the globe must not sit under panels
+    const sel = 'header, .panel, [aria-label="Current conditions"], [aria-label="Layers and view"], [aria-label="Globe view"], [aria-label="Impact dashboard"], [data-keepout]';
+    const t = setInterval(() => { const e = eng.current; if (!e || !canvasRef.current) return; const c = canvasRef.current.getBoundingClientRect();
+      e.setKeepOut([...document.querySelectorAll(sel)].map(el => el.getBoundingClientRect()).filter(r => r.width > 0).map(r => ({ x: r.left - c.left - 6, y: r.top - c.top - 6, w: r.width + 12, h: r.height + 12 }))); }, 250);
+    return () => clearInterval(t);
+  }, []);
+  const impSeq = useRef(0);                                 // only the latest run may set the impact tiles
   const placeCb = useRef(() => {});
   placeCb.current = (la, lo) => { if (placeFor === 'event') setEvCenter([la, lo]); if (placeFor === 'shock') setShCenter([la, lo]); setPlaceFor(null); };
   // ---- start preset -> plain forecast (live /run with nothing added) ----
@@ -71,7 +78,7 @@ export default function App() {
     if (!pid) return; setPrime(null); setRun(null); setDay(0); setImpPlain(null); setImpRun(null); setImpSel(null);
     Promise.all([api.preset(pid), api.run(pid, null)]).then(([p, r]) => {
       setPrime({ frames: [toFrame(p.init_states[2]), ...r.prime.map(toFrame)], meta: p, normal: cloudNormal(p.init_states) }); setPrimeMs(r.timing.server_ms_prime);
-      return api.impact({ preset_id: pid }).then(setImpPlain);
+      return api.impact({ preset_id: pid }).then(x => { if (x.preset_id === pid) setImpPlain(x); });
     }).catch(x => setErr('Forecast failed: ' + x.message));
   }, [pid]);
 
@@ -134,14 +141,14 @@ export default function App() {
           tiles: shId === 'custom' ? [cv.tile] : (sh.tile ? [sh.tile] : []) };
       }
       r = { ...r, frames: [addDelta(prime.frames[0], pv.perturbation)], outcome: [pv.outcome_day0], thr: pv.thresholds, metrics: null, ms: null, pert: pv.perturbation };
-      setRun({ ...r }); setPanel(null); setView('diff'); setDay(0); setImpRun(null);
+      setRun({ ...r }); setPanel(null); setView('diff'); setDay(0); setImpRun(null); const seq = ++impSeq.current;
       if (r.tiles.length) { setOn(o => { const n = { ...o }; r.tiles.forEach(t => (n[t] = true)); return n; }); setFocus(r.tiles[0]); }
       const done = await api.stream(body, m => { if (m.type === 'day') { r.frames[m.day] = toFrame(m.branch); r.outcome[m.day] = m.outcome; setRun({ ...r, frames: [...r.frames], outcome: [...r.outcome] }); } });
       setRun({ ...r, frames: [...r.frames], outcome: [...r.outcome], metrics: done.event_metrics, fade: done.fade, ms: done.timing.server_ms_branch });
-      api.impact(body).then(setImpRun).catch(x => setErr('Impacts failed: ' + x.message));
+      api.impact(body).then(x => { if (seq === impSeq.current) setImpRun(x); }).catch(x => setErr('Impacts failed: ' + x.message));
     } catch (x) { setErr('Run failed: ' + x.message); } finally { setBusy(false); }
   }
-  const backToEarth = () => { setRun(null); setImpRun(null); setPanel(null); setPlaceFor(null); setDay(0); };
+  const backToEarth = () => { impSeq.current++; setRun(null); setImpRun(null); setPanel(null); setPlaceFor(null); setDay(0); };
 
   // ---- top-left: Current conditions (nothing running) ----
   const FT = TILES.find(t => t.id === focus), L = LAYERS.find(l => l.id === ((FT && FT.w && on[focus]) ? FT.w : 'terrain'));
@@ -301,7 +308,7 @@ export default function App() {
                   {cond.rows.map(([k, v, u]) => <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span style={{ fontSize: 10, letterSpacing: '0.18em', color: '#9FC2B6' }}>{k}</span>
                     <span className="fred" style={{ fontWeight: 500, fontSize: 'clamp(24px, 2.4vw, 36px)', lineHeight: 1, color: 'rgba(231,242,238,0.78)' }}>{v}<span style={{ fontSize: '0.45em', fontWeight: 400, marginLeft: 4, color: 'rgba(231,242,238,0.55)' }}>{u}</span></span></div>)}
                 </div></> : <span className="fred" style={{ fontSize: 22, color: 'rgba(231,242,238,0.6)' }}>{err || 'Point at India to read the weather there'}</span>}
-              <span className="mono" style={{ fontSize: 11, letterSpacing: '0.06em', color: '#9FC2B6', marginTop: 4 }}>DRAG TO ORBIT · SCROLL TO ZOOM · SHIFT-DRAG TO ROLL</span>
+              <span className="mono" style={{ fontSize: 11, letterSpacing: '0.06em', color: '#9FC2B6', marginTop: 4 }}>DRAG TO ORBIT · SCROLL TO ZOOM · HOVER INDIA</span>
             </div> : <div />}
 
             <section aria-label="Layers and view" className="glass" style={{ pointerEvents: 'auto', width: 300, maxWidth: '100%', padding: 12, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -333,7 +340,7 @@ export default function App() {
         </div>
 
         <ImpactRow imp={imp} run={run} day={day} sel={impSel} pick={pickImpact} why={why} setWhy={setWhy} />
-        <div className="glass" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 999, maxWidth: 'calc(100% - 48px)', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div data-keepout className="glass" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 999, maxWidth: 'calc(100% - 48px)', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" aria-label={playing ? 'Pause the 10-day rollout' : 'Play the 10-day rollout'} onClick={() => { if (!playing && day >= 10) setDay(0); setPlaying(!playing); }}
             style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(127,216,190,0.6)', background: 'rgba(127,216,190,0.14)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {playing ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M4 2.5v9M10 2.5v9" stroke="#E7F2EE" strokeWidth="1.8" strokeLinecap="round" /></svg>
@@ -382,6 +389,14 @@ function EventMetrics({ run, day }) {
 // ---- Impact dashboard ------------------------------------------------------------------------------------------
 const LEVEL_C = { Low: '127,216,190', Moderate: '233,215,138', High: '242,178,107', Severe: '224,122,79' };
 const tfmt = (x, u) => (u === '%' ? fmt(x, 1) + '%' : fmt(x, 1) + ' ' + u);
+/** headline value + what it means, per tile */
+function tval(t) { const b = t.branch;
+  if (t.id === 'heat') return [(b.value > 0 ? '+' : '') + fmt(b.value, 1) + ' °C', 'above normal for this date · hottest India cell'];
+  if (t.id === 'solar') return [fmt(b.value, 1) + '%', `clear, dry India land · normal ${fmt(t.normal, 1)}%`];
+  if (t.id === 'wind') return [fmt(b.value, 1) + ' W/m²', `India-land mean · ${b.pct_of_normal}% of normal`];
+  if (t.id === 'flood') return [fmt(b.value, 1) + ' mm/day', 'wettest India cell (IMD scale)'];
+  return [fmt(b.value, 1) + '%', 'of cropland under half its normal rain']; }
+const dunit = t => (t.id === 'heat' ? ' °C' : t.unit === '%' ? ' pts' : ' ' + t.unit);
 
 function Spark({ t, day }) {
   const W = 236, H = 50, a = t.prime.series, b = t.branch.series, all = [...a, ...b], lo = Math.min(...all), hi = Math.max(...all), r = hi - lo || 1;
@@ -402,12 +417,13 @@ function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
       const agree = !cf ? '' : imp.has_change ? `${cf.same_direction}/${cf.members} agree` : `${cf.same_level}/${cf.members} agree`;
       return <div key={t.id} style={{ position: 'relative' }}>
         <div role="button" tabIndex={0} aria-pressed={on} data-testid={'impact-' + t.id} onClick={() => pick(t)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && pick(t)} className="glass"
-          style={{ width: 140, padding: '8px 10px', borderRadius: 14, cursor: t.active ? 'pointer' : 'default', border: `1px solid rgba(${c},${on ? 0.95 : 0.4})`, boxShadow: on ? `0 0 14px rgba(${c},0.35)` : 'none', display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
+          style={{ width: 156, padding: '8px 10px', borderRadius: 14, cursor: t.active ? 'pointer' : 'default', border: `1px solid rgba(${c},${on ? 0.95 : 0.4})`, boxShadow: on ? `0 0 14px rgba(${c},0.35)` : 'none', display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
           <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}><span className="cap" style={{ letterSpacing: '0.08em' }}>{t.name.toUpperCase()}</span>
             {t.active && <span data-testid={'level-' + t.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `rgba(${c},0.2)`, color: `rgb(${c})` }}>{t.branch.level}</span>}</span>
           {t.active ? <>
-            <span className="fred" style={{ fontSize: 20, fontWeight: 500, color: '#F2FBF7' }}>{tfmt(t.branch.value, t.unit)}</span>
-            <span className="mono" style={{ fontSize: 11, color: imp.has_change && t.delta !== 0 ? '#F5EBC0' : '#9FC2B6' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + ' vs plain' : 'plain forecast'}</span>
+            <span className="fred" style={{ fontSize: 20, fontWeight: 500, color: '#F2FBF7' }}>{tval(t)[0]}</span>
+            <span data-testid={'meaning-' + t.id} style={{ fontSize: 10, lineHeight: 1.3, color: '#BFD9D0' }}>{tval(t)[1]}</span>
+            <span className="mono" style={{ fontSize: 11, color: imp.has_change && t.delta !== 0 ? '#F5EBC0' : '#9FC2B6' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + dunit(t) + ' vs plain' : 'plain forecast'}</span>
             <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#9FC2B6' }}><span title="ensemble members agreeing">{agree}</span>
               <button type="button" aria-expanded={why === t.id} onClick={e => { e.stopPropagation(); setWhy(why === t.id ? null : t.id); }} style={{ ...btn, minHeight: 22, padding: '0 8px', fontSize: 10, border: '1px solid rgba(159,194,182,0.35)', background: 'transparent' }}>Why? {why === t.id ? '▴' : '▾'}</button></span>
           </> : <span style={{ fontSize: 11, color: '#9FC2B6' }}>Off season (Jun–Sep only)</span>}

@@ -27,7 +27,7 @@ def ids():
 
 
 def up_to_date() -> bool:
-    need = [CACHE / f"{i}.npz" for i in ids()] + [CACHE / "presets_index.json", CACHE / "clim_pentad.npz",
+    need = [CACHE / f"{i}.npz" for i in ids()] + [CACHE / "presets_index.json", CACHE / "clim_pentad.npz", CACHE / "clim_extra.npz",
                                                   CACHE / "events.npz", CACHE / "events.json"]
     if not all(p.exists() for p in need):
         return False
@@ -65,6 +65,11 @@ def build(force: bool = False) -> Path:
     clim = train_climatology()
     pent = np.stack([clim[5 * p:5 * p + 5, [0, 1]].mean(0) for p in range(73)]).astype("f4")
     np.savez_compressed(CACHE / "clim_pentad.npz", clim=pent, channels=np.array(["t2m", "tp"]))
+    # normals for "vs normal for this date": clear-dry-day share and wind power, per pentad, training years only
+    tr = np.array([d.year not in VAL_YEARS for d in dates]); pid_ = np.array([min((d.timetuple().tm_yday - 1) // 5, 72) for d in dates])
+    good = ((data[:, 1] < 1.0) & (data[:, 5] < 40.0)).astype("f4"); p3 = (np.hypot(data[:, 2], data[:, 3]) ** 3).astype("f4")
+    np.savez_compressed(CACHE / "clim_extra.npz", good=np.stack([good[tr & (pid_ == k)].mean(0) for k in range(73)]),
+                        speed3=np.stack([p3[tr & (pid_ == k)].mean(0) for k in range(73)]))
     # weather-event templates (anomaly vs the training-years day-of-year climatology), from the same windows
     from monsoon_r1 import stats as KS
     from backend.gateway import events, geo
