@@ -5,9 +5,10 @@ import { api, prepGeo, toFrame, addDelta, diffFrame, LAYERS, TILES, TIMES, SHOCK
 const RAD = Math.PI / 180;
 const fmt = (x, d) => Number(x).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
 const sgn = (x, d) => (x > 0 ? '+' : '') + fmt(x, d);
-const chip = (on, acc = '127,216,190') => ({ border: '1px solid ' + (on ? `rgba(${acc},0.7)` : 'rgba(159,194,182,0.25)'), background: on ? `rgba(${acc},0.16)` : 'rgba(255,255,255,0.03)' });
-const btn = { minHeight: 36, borderRadius: 10, color: '#E7F2EE', fontSize: 12, cursor: 'pointer' };
-const TEAL = '110,200,235', AMBER = '233,215,138';
+const chip = (on, acc) => ({ border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--hairline)'), background: on ? 'var(--accent-soft)' : 'transparent' });
+const btn = { minHeight: 36, borderRadius: 10, color: 'var(--text)', fontSize: 12, cursor: 'pointer' };
+const primary = { border: 'none', background: 'var(--accent)', color: '#FFFFFF' };              // flat primary button
+const TEAL = '121,135,110', AMBER = '121,135,110';   // accents now come from the tokens (sage)
 const VAR = { t2m: ['temperature', '°C', 1], tp: ['rain', 'mm/day', 1], ws: ['wind speed', 'm/s', 1], msl: ['pressure', 'hPa', 0.01], tcwv: ['moisture', 'kg/m²', 1] };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const addDays = (iso, k) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10); };
@@ -36,9 +37,9 @@ function sixAvg(fr, mask, elevOf) {
 }
 const SIX = [['elev', 'Elevation', 'm', 0], ['tp', 'Rain', 'mm/day', 1], ['t2m', 'Temperature', '°C', 1], ['ws', 'Wind', 'm/s', 1], ['msl', 'Pressure', 'hPa', 1], ['tcwv', 'Moisture', 'kg/m²', 0]];
 
-const Panel = ({ title, acc, children, label }) => <section aria-label={label} className="panel" style={{ borderColor: `rgba(${acc},0.45)` }}>
-  <h2 className="fred" style={{ margin: 0, fontWeight: 600, fontSize: 18, color: `rgb(${acc})` }}>{title}</h2>{children}</section>;
-const Warn = ({ list }) => list.map((w, i) => <p key={i} style={{ margin: 0, fontSize: 11, color: '#F2B26B' }}>⚠ {w}</p>);
+const Panel = ({ title, acc, children, label }) => <section aria-label={label} className="panel">
+  <h2 className="fred" style={{ margin: 0, fontWeight: 600, fontSize: 18, color: 'var(--text-strong)' }}>{title}</h2>{children}</section>;
+const Warn = ({ list }) => list.map((w, i) => <p key={i} style={{ margin: 0, fontSize: 11, color: 'var(--warn)' }}>{w}</p>);
 
 export default function App() {
   const canvasRef = useRef(null), eng = useRef(null);
@@ -188,45 +189,45 @@ export default function App() {
     : run.title + ' · ' + { with: 'with it', diff: 'difference', without: 'without it' }[view] + (busy || !run.frames[day] ? ' · running…' : '');
 
   const placer = (center, who) => <button type="button" aria-pressed={placeFor === who} onClick={() => setPlaceFor(placeFor === who ? null : who)}
-    style={{ ...btn, minHeight: 40, border: '1px solid rgba(233,215,138,0.7)', background: 'rgba(233,215,138,0.12)', color: '#F5EBC0', fontWeight: 600 }}>
+    style={{ ...btn, minHeight: 40, border: '1px solid var(--accent-edge)', background: 'var(--accent-soft)', color: 'var(--text-strong)', fontWeight: 600 }}>
     {placeFor === who ? 'Click the globe to drop it…' : center ? `Drop point: ${center[0].toFixed(1)}°N ${center[1].toFixed(1)}°E · ${regionName(center[0], center[1])} (click to move)` : 'Drop it on the map'}</button>;
   const hbtn = (id, name, acc) => <button type="button" aria-pressed={panel === id} onClick={() => setPanel(panel === id ? null : id)}
-    style={{ ...btn, minHeight: 40, padding: '0 18px', borderRadius: 999, fontSize: 13, fontWeight: 600, ...chip(panel === id, acc), borderColor: `rgba(${acc},${panel === id ? 0.8 : 0.45})` }}>{name}</button>;
+    style={{ ...btn, minHeight: 40, padding: '0 14px', borderRadius: 0, fontSize: 13, fontWeight: 600, border: 'none', borderBottom: '2px solid ' + (panel === id ? 'var(--accent)' : 'transparent'), background: 'transparent', color: panel === id ? 'var(--text-strong)' : 'var(--text)' }}>{name}</button>;
 
   return (
     <div style={{ position: 'relative', height: '100vh', minHeight: 680, overflow: 'hidden', background: '#02050A' }}>
       <canvas ref={canvasRef} aria-label="Interactive 3D Earth centred on India with the Sun, Moon and planets in their real directions. Drag to orbit, scroll to zoom, shift-drag or right-drag to roll."
         role="img" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', cursor: 'grab', touchAction: 'none' }} />
-      {tip && <div style={{ position: 'absolute', left: tip.x, top: tip.y, transform: 'translate(18px,18px)', pointerEvents: 'none', minWidth: 200, padding: '10px 12px', borderRadius: 12, background: 'rgba(5,16,20,0.8)', border: '1px solid rgba(127,216,190,0.3)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 3 }}>
-        <span className="fred" style={{ fontWeight: 600, fontSize: 14, letterSpacing: '0.05em', color: '#F2FBF7' }}>{tip.region}</span>
-        <span className="mono" style={{ fontSize: 12, color: '#BFD9D0' }}>{tip.ll}</span>
-        <span className="mono" style={{ fontSize: 12, color: '#9FE3CF' }}>{tip.elev}</span></div>}
-      {placeFor && <div role="status" style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', zIndex: 4, pointerEvents: 'none', padding: '10px 16px', borderRadius: 999, background: 'rgba(233,215,138,0.16)', border: '1px solid rgba(233,215,138,0.7)', color: '#F5EBC0', fontSize: 13 }}>Click anywhere in the study area (6–38°N, 65–101°E) · the ring shows the size</div>}
+      {tip && <div style={{ position: 'absolute', left: tip.x, top: tip.y, transform: 'translate(18px,18px)', pointerEvents: 'none', minWidth: 200, padding: '10px 12px', borderRadius: 12, background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 3 }}>
+        <span className="fred" style={{ fontWeight: 600, fontSize: 14, letterSpacing: '0.05em', color: 'var(--text-strong)' }}>{tip.region}</span>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tip.ll}</span>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-strong)' }}>{tip.elev}</span></div>}
+      {placeFor && <div role="status" style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', zIndex: 4, pointerEvents: 'none', padding: '10px 16px', borderRadius: 999, background: 'var(--panel-bg)', border: '1px solid var(--accent-edge)', boxShadow: 'var(--panel-shadow)', color: 'var(--text-strong)', fontSize: 13 }}>Click anywhere in the study area (6–38°N, 65–101°E) · the ring shows the size</div>}
 
-      {panel === 'earth' && <Panel title="Earth · starting data" acc="127,216,190" label="Earth">
-        <p style={{ margin: 0, fontSize: 12, color: '#BFD9D0', lineHeight: 1.5 }}>Choose the real start state. The model then forecasts the next 10 days from it.</p>
+      {panel === 'earth' && <Panel title="Earth · starting data" acc="121,135,110" label="Earth">
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>Choose the real start state. The model then forecasts the next 10 days from it.</p>
         {presets.map(p => <button key={p.id} type="button" aria-pressed={p.id === pid} onClick={() => { setPid(p.id); setPanel(null); }}
           style={{ ...btn, textAlign: 'left', padding: '8px 10px', ...chip(p.id === pid) }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span className="fred" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span><span className="mono" style={{ color: '#9FC2B6' }}>{nice(p.last_input_day)}</span></div>
-          <div style={{ fontSize: 11, color: '#BFD9D0', marginTop: 2 }}>{p.description}</div></button>)}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span className="fred" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span><span className="mono" style={{ color: 'var(--text-faint)' }}>{nice(p.last_input_day)}</span></div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div></button>)}
         <button type="button" onClick={backToEarth} disabled={!run} style={{ ...btn, minHeight: 40, fontWeight: 600, ...chip(true), opacity: run ? 1 : 0.45 }}>Back to Earth (clear the event or shock)</button>
       </Panel>}
 
       {panel === 'events' && <Panel title="Weather events" acc={TEAL} label="Weather events">
-        <p style={{ margin: 0, fontSize: 12, color: '#BFD9D0', lineHeight: 1.5 }}>Real events from 2019–2021, cut out of the data. Place one anywhere and watch it play out over 10 days.</p>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>Real events from 2019–2021, cut out of the data. Place one anywhere and watch it play out over 10 days.</p>
         <div role="group" aria-label="Event" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {events.map(e => <button key={e.id} type="button" aria-pressed={e.id === evId} onClick={() => { setEvId(e.id); setEvCenter([e.centre.lat, e.centre.lon]); }}
             style={{ ...btn, textAlign: 'left', padding: '7px 10px', ...chip(e.id === evId, TEAL) }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span className="fred" style={{ fontSize: 14, fontWeight: 600 }}>{e.name}</span><span className="mono" style={{ color: '#9FC2B6' }}>{nice(e.source_date)}</span></div>
-            <div style={{ fontSize: 11, color: '#BFD9D0', marginTop: 2 }}>{e.description}</div></button>)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span className="fred" style={{ fontSize: 14, fontWeight: 600 }}>{e.name}</span><span className="mono" style={{ color: 'var(--text-faint)' }}>{nice(e.source_date)}</span></div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{e.description}</div></button>)}
         </div>
-        {ev && <span className="mono" style={{ fontSize: 11, color: '#9FC2B6' }}>Real centre {ev.centre.lat}°N {ev.centre.lon}°E · {ev.signature.msl_anomaly_hPa} hPa · wind up to +{ev.signature.max_wind_anomaly_m_s} m/s · rain up to +{ev.signature.max_rain_anomaly_mm_day} mm/day</span>}
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#BFD9D0' }}>Strength: <span className="mono" style={{ color: `rgb(${TEAL})` }}>{evStrength}% of the real event</span>
-          <input type="range" min="50" max="150" step="5" value={evStrength} onChange={e => setEvStrength(Number(e.target.value))} style={{ accentColor: `rgb(${TEAL})` }} /></label>
+        {ev && <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>Real centre {ev.centre.lat}°N {ev.centre.lon}°E · {ev.signature.msl_anomaly_hPa} hPa · wind up to +{ev.signature.max_wind_anomaly_m_s} m/s · rain up to +{ev.signature.max_rain_anomaly_mm_day} mm/day</span>}
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Strength: <span className="mono" style={{ color: 'var(--text-strong)' }}>{evStrength}% of the real event</span>
+          <input type="range" min="50" max="150" step="5" value={evStrength} onChange={e => setEvStrength(Number(e.target.value))} style={{ '--fill': (evStrength - 50) + '%' }} /></label>
         {placer(evCenter, 'event')}
-        <button type="button" onClick={() => ev && setEvCenter([ev.centre.lat, ev.centre.lon])} style={{ ...btn, border: '1px solid rgba(159,194,182,0.35)', background: 'transparent', color: '#BFD9D0' }}>Where it really happened</button>
+        <button type="button" onClick={() => ev && setEvCenter([ev.centre.lat, ev.centre.lon])} style={{ ...btn, border: '1px solid var(--accent-edge)', background: 'transparent', color: 'var(--text-muted)' }}>Where it really happened</button>
         <Warn list={evWarn} />
-        <button type="button" onClick={() => start('event')} disabled={busy || !prime || !evCenter} style={{ ...btn, minHeight: 40, fontSize: 13, fontWeight: 600, border: `1px solid rgba(${TEAL},0.8)`, background: `rgba(${TEAL},0.2)`, opacity: busy ? 0.5 : 1 }}>{busy ? 'Running…' : 'Run the event'}</button>
+        <button type="button" onClick={() => start('event')} disabled={busy || !prime || !evCenter} style={{ ...btn, minHeight: 40, fontSize: 13, fontWeight: 600, ...primary, opacity: busy ? 0.5 : 1 }}>{busy ? 'Running…' : 'Run the event'}</button>
       </Panel>}
 
       {panel === 'shocks' && <Panel title="Shocks" acc={AMBER} label="Shocks">
@@ -234,73 +235,73 @@ export default function App() {
           {SHOCKS.map(s => <button key={s.id} type="button" aria-pressed={s.id === shId} onClick={() => setShId(s.id)} style={{ ...btn, minHeight: 44, ...chip(s.id === shId, AMBER) }}>{s.name}</button>)}
         </div>
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>{sh.text}</p>
-        {sh.box && <span className="mono" style={{ fontSize: 11, color: '#F5EBC0' }}>Fixed box {sh.box[0]}–{sh.box[1]}°N, {sh.box[2]}–{sh.box[3]}°E (dashed on the globe)</span>}
-        {shId === 'zero' && <span className="mono" style={{ fontSize: 12, color: '#F5EBC0' }}>Expected — difference: exactly 0, everywhere, every day.</span>}
+        {sh.box && <span className="mono" style={{ fontSize: 11, color: 'var(--text-strong)' }}>Fixed box {sh.box[0]}–{sh.box[1]}°N, {sh.box[2]}–{sh.box[3]}°E (dashed on the globe)</span>}
+        {shId === 'zero' && <span className="mono" style={{ fontSize: 12, color: 'var(--text-strong)' }}>Expected — difference: exactly 0, everywhere, every day.</span>}
         {shId === 'custom' && <>
           <div role="group" aria-label="Variable to change" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 4 }}>
             {CVARS.map(c => <button key={c.id} type="button" aria-pressed={c.id === cvar} onClick={() => { setCvar(c.id); setCamt(c.def); }} style={{ ...btn, fontSize: 11, ...chip(c.id === cvar, AMBER) }}>{c.name}</button>)}</div>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#BFD9D0' }}>Amount: <span className="mono" style={{ color: '#F5EBC0' }}>{fmtSigned(camt, cv.unit)}</span>
-            <input type="range" min={cv.min} max={cv.max} step={cv.step} value={camt} onChange={e => setCamt(Number(e.target.value))} style={{ accentColor: '#E9D78A' }} /></label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#BFD9D0' }}>Size: <span className="mono" style={{ color: '#F5EBC0' }}>{'radius ' + crad + ' cells (about ' + Math.round(crad * 111) + ' km)'}</span>
-            <input type="range" min="1" max="10" step="1" value={crad} onChange={e => setCrad(Number(e.target.value))} style={{ accentColor: '#E9D78A' }} /></label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Amount: <span className="mono" style={{ color: 'var(--text-strong)' }}>{fmtSigned(camt, cv.unit)}</span>
+            <input type="range" min={cv.min} max={cv.max} step={cv.step} value={camt} onChange={e => setCamt(Number(e.target.value))} style={{ '--fill': (100 * (camt - cv.min) / (cv.max - cv.min)) + '%' }} /></label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Size: <span className="mono" style={{ color: 'var(--text-strong)' }}>{'radius ' + crad + ' cells (about ' + Math.round(crad * 111) + ' km)'}</span>
+            <input type="range" min="1" max="10" step="1" value={crad} onChange={e => setCrad(Number(e.target.value))} style={{ '--fill': (100 * (crad - 1) / 9) + '%' }} /></label>
           {placer(shCenter, 'shock')}</>}
         <Warn list={shWarn} />
-        <button type="button" onClick={() => start('shock')} disabled={busy || !prime || (shId === 'custom' && !shCenter)} style={{ ...btn, minHeight: 40, fontSize: 13, fontWeight: 600, border: '1px solid rgba(233,215,138,0.8)', background: 'rgba(233,215,138,0.2)', color: '#F5EBC0', opacity: busy || (shId === 'custom' && !shCenter) ? 0.45 : 1 }}>{busy ? 'Running…' : 'Run the shock'}</button>
+        <button type="button" onClick={() => start('shock')} disabled={busy || !prime || (shId === 'custom' && !shCenter)} style={{ ...btn, minHeight: 40, fontSize: 13, fontWeight: 600, ...primary, opacity: busy || (shId === 'custom' && !shCenter) ? 0.45 : 1 }}>{busy ? 'Running…' : 'Run the shock'}</button>
       </Panel>}
 
-      {oc && !panel && <section aria-label="Outcome" className="panel" style={{ width: 400, borderColor: `rgba(${run.kind === 'event' ? TEAL : AMBER},0.45)` }}>
-        <div><span className="cap" style={{ color: `rgb(${run.kind === 'event' ? TEAL : AMBER})` }}>OUTCOME · {day === 0 ? 'NOW (THE MOMENT IT HITS)' : 'DAY +' + day}</span>
-          <h2 className="fred" style={{ margin: '4px 0 0', fontWeight: 600, fontSize: 18, color: '#F2FBF7' }}>{run.title}</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#BFD9D0' }}>At {run.center[0].toFixed(1)}°N {run.center[1].toFixed(1)}°E · {regionName(...run.center)} · start: {prime.meta.name}, {nice(prime.meta.last_input_day)}</p>
-          {run.kind === 'event' && <p style={{ margin: '2px 0 0', fontSize: 11, color: '#9FC2B6' }}>{run.sub}</p>}</div>
+      {oc && !panel && <section aria-label="Outcome" className="panel" style={{ width: 400 }}>
+        <div><span className="cap">OUTCOME · {day === 0 ? 'NOW (THE MOMENT IT HITS)' : 'DAY +' + day}</span>
+          <h2 className="fred" style={{ margin: '4px 0 0', fontWeight: 600, fontSize: 18, color: 'var(--text-strong)' }}>{run.title}</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>At {run.center[0].toFixed(1)}°N {run.center[1].toFixed(1)}°E · {regionName(...run.center)} · start: {prime.meta.name}, {nice(prime.meta.last_input_day)}</p>
+          {run.kind === 'event' && <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-faint)' }}>{run.sub}</p>}</div>
         <Warn list={run.warnings} />
         <div role="group" aria-label="View" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 4 }}>
           {[['with', 'With it'], ['diff', 'Difference'], ['without', 'Without']].map(([id, n]) => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} style={{ ...btn, ...chip(view === id) }}>{n}</button>)}</div>
-        {run.kind === 'zero' && oc.o && <span className="mono" style={{ fontSize: 13, color: '#9FE3CF' }}>difference: {oc.o.cells === 0 && Object.values(oc.o.max_abs_change).every(v => v === 0) ? 'exactly 0' : 'NOT zero (' + JSON.stringify(oc.o.max_abs_change) + ')'}</span>}
+        {run.kind === 'zero' && oc.o && <span className="mono" style={{ fontSize: 13, color: 'var(--text-strong)' }}>difference: {oc.o.cells === 0 && Object.values(oc.o.max_abs_change).every(v => v === 0) ? 'exactly 0' : 'NOT zero (' + JSON.stringify(oc.o.max_abs_change) + ')'}</span>}
         {oc.o ? <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
             {[[fmt(Math.round(oc.o.reach_km), 0), 'km reached'], [fmt(Math.round(oc.o.affected_area_kkm2), 0), 'thousand km² affected'],
               [oc.gv ? sgn(oc.o.peak_change * oc.gv[2], 1) : '0', oc.gv ? 'peak Δ ' + oc.gv[0] + ' ' + oc.gv[1] : 'no change above thresholds']].map(([v, k], i) =>
-              <div key={i}><div className="fred" style={{ fontWeight: 500, fontSize: 24 }}>{v}</div><div style={{ fontSize: 11, color: '#9FC2B6' }}>{k}</div></div>)}</div>
-          {oc.faded && <p style={{ margin: 0, fontSize: 12, color: '#F2B26B' }}>Faded by day +{oc.firstZero}: every change is now below the thresholds.</p>}
+              <div key={i}><div className="fred" style={{ fontWeight: 500, fontSize: 24 }}>{v}</div><div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{k}</div></div>)}</div>
+          {oc.faded && <p style={{ margin: 0, fontSize: 12, color: 'var(--warn)' }}>Faded by day +{oc.firstZero}: every change is now below the thresholds.</p>}
           {oc.six && <table aria-label="Six core parameters" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-            <thead><tr style={{ color: '#9FC2B6' }}><th style={{ textAlign: 'left', fontWeight: 400 }}></th><th colSpan="3" style={{ fontWeight: 400 }}>at the centre</th><th colSpan="3" style={{ fontWeight: 400 }}>affected-area average</th></tr>
-              <tr style={{ color: '#9FC2B6' }}><th></th>{['with', 'without', 'Δ', 'with', 'without', 'Δ'].map((h, i) => <th key={i} style={{ fontWeight: 400, textAlign: 'right' }}>{h}</th>)}</tr></thead>
-            <tbody>{SIX.map(([k, n, u, d]) => <tr key={k}><td style={{ color: '#E7F2EE' }}>{n} <span style={{ color: '#9FC2B6' }}>{u}</span></td>
-              {[oc.six.c, oc.six.a].map((pair, j) => pair[0] ? [pair[0][k], pair[1][k], pair[0][k] - pair[1][k]].map((v, i) => <td key={j + '' + i} className="mono" style={{ textAlign: 'right', color: i === 2 ? '#F5EBC0' : '#E7F2EE' }}>{i === 2 ? sgn(v, d) : fmt(v, d)}</td>)
-                : [0, 1, 2].map(i => <td key={j + '' + i} style={{ textAlign: 'right', color: '#9FC2B6' }}>—</td>))}</tr>)}</tbody></table>}
+            <thead><tr style={{ color: 'var(--text-faint)' }}><th style={{ textAlign: 'left', fontWeight: 400 }}></th><th colSpan="3" style={{ fontWeight: 400 }}>at the centre</th><th colSpan="3" style={{ fontWeight: 400 }}>affected-area average</th></tr>
+              <tr style={{ color: 'var(--text-faint)' }}><th></th>{['with', 'without', 'Δ', 'with', 'without', 'Δ'].map((h, i) => <th key={i} style={{ fontWeight: 400, textAlign: 'right' }}>{h}</th>)}</tr></thead>
+            <tbody>{SIX.map(([k, n, u, d]) => <tr key={k}><td style={{ color: 'var(--text)' }}>{n} <span style={{ color: 'var(--text-faint)' }}>{u}</span></td>
+              {[oc.six.c, oc.six.a].map((pair, j) => pair[0] ? [pair[0][k], pair[1][k], pair[0][k] - pair[1][k]].map((v, i) => <td key={j + '' + i} className="mono" style={{ textAlign: 'right', color: i === 2 ? 'var(--text-strong)' : 'var(--text)' }}>{i === 2 ? sgn(v, d) : fmt(v, d)}</td>)
+                : [0, 1, 2].map(i => <td key={j + '' + i} style={{ textAlign: 'right', color: 'var(--text-faint)' }}>—</td>))}</tr>)}</tbody></table>}
           <span className="cap">MOST AFFECTED STATES{oc.gv ? ' · Δ ' + oc.gv[0].toUpperCase() + ' ' + oc.gv[1] : ''}</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {oc.states.length ? oc.states.map(st => <div key={st.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span>{st.name}</span><span className="mono" style={{ color: '#F5EBC0' }}>{sgn(st.m, 2)}</span></div>)
-              : <span style={{ fontSize: 12, color: '#9FC2B6' }}>{oc.faded ? 'None: the effect has faded.' : 'No Indian state is affected above the thresholds on this day.'}</span>}</div>
+            {oc.states.length ? oc.states.map(st => <div key={st.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span>{st.name}</span><span className="mono" style={{ color: 'var(--text-strong)' }}>{sgn(st.m, 2)}</span></div>)
+              : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{oc.faded ? 'None: the effect has faded.' : 'No Indian state is affected above the thresholds on this day.'}</span>}</div>
           <EventMetrics run={run} day={day} />
-        </> : <span style={{ fontSize: 12, color: '#9FC2B6' }}>Waiting for the model…</span>}
-        <p style={{ margin: 0, fontSize: 11, color: '#9FC2B6' }}>Thresholds: {run.thr ? `${run.thr.t2m} °C, ${run.thr.tp} mm/day, ${run.thr.ws} m/s, ${run.thr.msl / 100} hPa, ${run.thr.tcwv} kg/m²` : ''}{run.ms ? ' · model time ' + run.ms.toFixed(0) + ' ms' : ''}</p>
-        <button type="button" onClick={backToEarth} style={{ ...btn, minHeight: 38, border: '1px solid rgba(159,194,182,0.35)', background: 'transparent', color: '#BFD9D0' }}>Back to Earth</button>
+        </> : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Waiting for the model…</span>}
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-faint)' }}>Thresholds: {run.thr ? `${run.thr.t2m} °C, ${run.thr.tp} mm/day, ${run.thr.ws} m/s, ${run.thr.msl / 100} hPa, ${run.thr.tcwv} kg/m²` : ''}{run.ms ? ' · model time ' + run.ms.toFixed(0) + ' ms' : ''}</p>
+        <button type="button" onClick={backToEarth} style={{ ...btn, minHeight: 38, border: '1px solid var(--accent-edge)', background: 'transparent', color: 'var(--text-muted)' }}>Back to Earth</button>
       </section>}
 
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', zIndex: 2 }}>
-        <header style={{ pointerEvents: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 22px', padding: '14px 24px', background: 'linear-gradient(rgba(2,5,10,0.9), rgba(2,5,10,0))' }}>
+        <header style={{ pointerEvents: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 22px', padding: '10px 20px', margin: '8px 12px 0', borderRadius: 'var(--panel-radius)', background: 'var(--panel-bg)', border: '1px solid var(--hairline)', boxShadow: 'var(--panel-shadow)', color: 'var(--text)', backdropFilter: 'blur(14px)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><circle cx="13" cy="13" r="11.5" stroke="#7FD8BE" strokeWidth="1.4" /><ellipse cx="13" cy="13" rx="5" ry="11.5" stroke="#7FD8BE" strokeOpacity="0.55" /><path d="M2 13h22" stroke="#7FD8BE" strokeOpacity="0.55" /></svg>
-            <div><div className="fred" style={{ fontWeight: 600, fontSize: 16, letterSpacing: '0.16em', color: '#F2FBF7' }}>MONSOON DIGITAL TWIN</div>
-              <div style={{ fontSize: 11, letterSpacing: '0.12em', color: '#9FC2B6' }}>INDIA STUDY AREA · 6–38°N · 65–101°E</div></div>
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" style={{ color: 'var(--accent)' }}><circle cx="13" cy="13" r="11.5" stroke="currentColor" strokeWidth="1.4" /><ellipse cx="13" cy="13" rx="5" ry="11.5" stroke="currentColor" strokeOpacity="0.55" /><path d="M2 13h22" stroke="currentColor" strokeOpacity="0.55" /></svg>
+            <div><div className="fred" style={{ fontWeight: 600, fontSize: 16, letterSpacing: '0.16em', color: 'var(--text-strong)' }}>MONSOON DIGITAL TWIN</div>
+              <div style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-faint)' }}>INDIA STUDY AREA · 6–38°N · 65–101°E</div></div>
           </div>
           <nav aria-label="Main" style={{ display: 'flex', gap: 8 }}>
-            {hbtn('earth', 'Earth', '127,216,190')}{hbtn('events', 'Weather events', TEAL)}{hbtn('shocks', 'Shocks', AMBER)}
+            {hbtn('earth', 'Earth', '121,135,110')}{hbtn('events', 'Weather events', TEAL)}{hbtn('shocks', 'Shocks', AMBER)}
           </nav>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#BFD9D0', flexWrap: 'wrap' }}>
-            <span>{prime ? prime.meta.name : '…'} · <span className="fred" style={{ color: '#F2FBF7', fontSize: 14 }}>{scenDate}</span></span>
-            <span className="mono" style={{ color: '#9FC2B6' }} title="Sky clock (Sun, Moon, planets, day and night)">{clock}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: ready ? '#7FD8BE' : '#E07A4F', boxShadow: '0 0 10px ' + (ready ? '#7FD8BE' : '#E07A4F') }} />{ready ? 'Engine ready' : 'Engine offline'}</span>
-            <span className="mono" style={{ color: '#9FC2B6' }}>10-day rollout · {primeMs ? primeMs.toFixed(0) + ' ms' : '…'}</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+            <span>{prime ? prime.meta.name : '…'} · <span className="fred" style={{ color: 'var(--text-strong)', fontSize: 14 }}>{scenDate}</span></span>
+            <span className="mono" style={{ color: 'var(--text-faint)' }} title="Sky clock (Sun, Moon, planets, day and night)">{clock}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: ready ? 'var(--accent)' : '#E07A4F' }} />{ready ? 'Engine ready' : 'Engine offline'}</span>
+            <span className="mono" style={{ color: 'var(--text-faint)' }}>10-day rollout · {primeMs ? primeMs.toFixed(0) + ' ms' : '…'}</span>
           </div>
         </header>
 
         <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'space-between', gap: 24, padding: '4px 24px 12px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16, maxWidth: 'min(560px, 48vw)', minWidth: 0 }}>
             {!run ? <div aria-live="polite" aria-label="Current conditions" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span className="cap">CURRENT CONDITIONS · {scenDate.toUpperCase()}</span>
+              <span className="cap" style={{ color: '#9FC2B6' }}>CURRENT CONDITIONS · {scenDate.toUpperCase()}</span>
               {cond ? <>
                 <span className="fred" style={{ fontWeight: 500, fontSize: 'clamp(34px, 3.6vw, 56px)', lineHeight: 1, color: 'rgba(231,242,238,0.75)' }}>{cond.place}</span>
                 <span className="mono" style={{ fontSize: 12, letterSpacing: '0.08em', color: '#BFD9D0' }}>{cond.ll}</span>
@@ -314,27 +315,27 @@ export default function App() {
             <section aria-label="Layers and view" className="glass" style={{ pointerEvents: 'auto', width: 300, maxWidth: '100%', padding: 12, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span className="cap">MAP LAYERS · TURN ON ANY COMBINATION</span>
               <div role="group" aria-label="Map layers" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 6 }}>
-                {TILES.map(t => { const o = !!on[t.id]; return <button key={t.id} type="button" aria-pressed={o} onClick={() => pickTile(t)} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 4, borderRadius: 10, border: '2px solid ' + (o ? 'rgba(127,216,190,0.85)' : 'rgba(159,194,182,0.18)'), background: 'rgba(255,255,255,0.03)', color: '#E7F2EE', cursor: 'pointer', textAlign: 'left' }}>
+                {TILES.map(t => { const o = !!on[t.id]; return <button key={t.id} type="button" aria-pressed={o} onClick={() => pickTile(t)} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 4, borderRadius: 10, border: '2px solid ' + (o ? 'var(--accent)' : 'var(--hairline)'), background: o ? 'var(--accent-soft)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
                   <span aria-hidden="true" style={{ display: 'block', height: 38, borderRadius: 7, background: t.thumb, opacity: o ? 1 : 0.45 }} />
-                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, fontSize: 11, padding: '0 2px' }}><span>{t.name}</span><span style={{ color: '#7FD8BE' }}>{o ? 'ON' : ''}</span></span></button>; })}
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, fontSize: 11, padding: '0 2px' }}><span>{t.name}</span><span style={{ color: 'var(--text-strong)', fontWeight: 600 }}>{o ? 'ON' : ''}</span></span></button>; })}
               </div>
-              <span style={{ fontSize: 11, lineHeight: 1.45, color: '#9FC2B6' }}>Colour scale: <span style={{ color: '#E7F2EE' }}>{focusName}</span> · the last weather layer you turned on.</span>
+              <span style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--text-faint)' }}>Colour scale: <span style={{ color: 'var(--text)' }}>{focusName}</span> · the last weather layer you turned on.</span>
               <span className="cap" style={{ marginTop: 4 }}>SKY (SUN, MOON, PLANETS, DAY/NIGHT)</span>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.6fr', gap: 4 }}>
                 {TIMES.map(m => <button key={m.id} type="button" aria-pressed={time === m.id} onClick={() => setTime(m.id)} style={{ ...btn, fontSize: 11, ...chip(time === m.id) }}>{m.name}</button>)}</div>
-              <span style={{ fontSize: 10, lineHeight: 1.4, color: '#9FC2B6' }}>The sky follows the scenario date ({scenDate}). The weather is never live.</span>
+              <span style={{ fontSize: 10, lineHeight: 1.4, color: 'var(--text-faint)' }}>The sky follows the scenario date ({scenDate}). The weather is never live.</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 30, fontSize: 12, color: '#BFD9D0', cursor: 'pointer' }}><input type="checkbox" checked={showPins} onChange={() => setShowPins(!showPins)} style={{ width: 16, height: 16, accentColor: '#7FD8BE' }} />Test-shock pins</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 30, fontSize: 12, color: '#BFD9D0', cursor: 'pointer' }}><input type="checkbox" checked={showCells} onChange={() => setShowCells(!showCells)} style={{ width: 16, height: 16, accentColor: '#7FD8BE' }} />Model cells (1°)</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 30, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}><input type="checkbox" checked={showPins} onChange={() => setShowPins(!showPins)} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />Test-shock pins</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 30, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}><input type="checkbox" checked={showCells} onChange={() => setShowCells(!showCells)} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />Model cells (1°)</label>
               </div>
             </section>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <div role="group" aria-label="Globe view" className="glass" style={{ pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: 6, borderRadius: 14, marginTop: 40 }}>
               {[['Zoom in', '+', () => eng.current.zoomIn(), 22], ['Zoom out', '−', () => eng.current.zoomOut(), 22], ['Turn north up', 'N↑', () => eng.current.northUp(), 12]].map(([l, t, f, fs]) =>
-                <button key={l} type="button" aria-label={l} onClick={f} style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: 'rgba(127,216,190,0.1)', color: '#E7F2EE', fontSize: fs, fontWeight: fs === 12 ? 600 : 400, cursor: 'pointer' }}>{t}</button>)}
-              <button type="button" aria-label="Reset view to India" onClick={() => eng.current.resetView()} style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: 'rgba(127,216,190,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9a6 6 0 1 0 2-4.5" stroke="#E7F2EE" strokeWidth="1.5" strokeLinecap="round" /><path d="M3 2.5V5h2.5" stroke="#E7F2EE" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+                <button key={l} type="button" aria-label={l} onClick={f} style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: 'var(--accent-soft)', color: 'var(--text-strong)', fontSize: fs, fontWeight: fs === 12 ? 600 : 400, cursor: 'pointer' }}>{t}</button>)}
+              <button type="button" aria-label="Reset view to India" onClick={() => eng.current.resetView()} style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: 'var(--accent-soft)', color: 'var(--text-strong)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9a6 6 0 1 0 2-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><path d="M3 2.5V5h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
             </div>
           </div>
         </div>
@@ -342,14 +343,14 @@ export default function App() {
         <ImpactRow imp={imp} run={run} day={day} sel={impSel} pick={pickImpact} why={why} setWhy={setWhy} />
         <div data-keepout className="glass" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 999, maxWidth: 'calc(100% - 48px)', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" aria-label={playing ? 'Pause the 10-day rollout' : 'Play the 10-day rollout'} onClick={() => { if (!playing && day >= 10) setDay(0); setPlaying(!playing); }}
-            style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(127,216,190,0.6)', background: 'rgba(127,216,190,0.14)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {playing ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M4 2.5v9M10 2.5v9" stroke="#E7F2EE" strokeWidth="1.8" strokeLinecap="round" /></svg>
-              : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 2v10l8.5-5z" stroke="#E7F2EE" strokeWidth="1.4" strokeLinejoin="round" /></svg>}</button>
+            style={{ width: 44, height: 44, borderRadius: '50%', ...primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {playing ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M4 2.5v9M10 2.5v9" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 2v10l8.5-5z" stroke="#FFFFFF" strokeWidth="1.4" strokeLinejoin="round" /></svg>}</button>
           <div role="group" aria-label="Forecast day" style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             {Array.from({ length: 11 }, (_, k) => <button key={k} type="button" aria-pressed={k === day} onClick={() => setDay(k)} className="mono"
-              style={{ minWidth: 44, minHeight: 40, borderRadius: 999, border: 'none', background: k === day ? 'rgba(127,216,190,0.22)' : 'transparent', color: k === day ? '#F2FBF7' : '#BFD9D0', fontSize: 12, cursor: 'pointer' }}>{k === 0 ? 'Now' : '+' + k}</button>)}
+              style={{ minWidth: 44, minHeight: 40, borderRadius: 999, border: 'none', background: k === day ? 'var(--accent-soft)' : 'transparent', color: k === day ? 'var(--text-strong)' : 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>{k === 0 ? 'Now' : '+' + k}</button>)}
           </div>
-          <span data-testid="caption" style={{ fontSize: 12, color: '#9FC2B6', padding: '0 8px' }}>{caption}</span>
+          <span data-testid="caption" style={{ fontSize: 12, color: 'var(--text-faint)', padding: '0 8px' }}>{caption}</span>
         </div>
       </div>
     </div>
@@ -359,35 +360,35 @@ export default function App() {
 /** Event-specific numbers for the selected day (from the gateway's event_metrics). */
 function EventMetrics({ run, day }) {
   const m = run.metrics; if (run.kind !== 'event') return null;
-  if (!m) return <span style={{ fontSize: 11, color: '#9FC2B6' }}>Event details arrive when all 10 days are done…</span>;
-  const Row = ({ k, v }) => <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}><span style={{ color: '#BFD9D0' }}>{k}</span><span className="mono" style={{ color: '#E7F2EE', textAlign: 'right' }}>{v}</span></div>;
+  if (!m) return <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Event details arrive when all 10 days are done…</span>;
+  const Row = ({ k, v }) => <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}><span style={{ color: 'var(--text-muted)' }}>{k}</span><span className="mono" style={{ color: 'var(--text)', textAlign: 'right' }}>{v}</span></div>;
   const d1 = Math.max(0, day - 1);
   let body = null;
   if (run.id === 'cyclone') { const t = m.track[day];
     body = <>{t && <><Row k="Centre (msl minimum)" v={`${t.lat}°N ${t.lon}°E · ${t.region.replace('Sea / outside', 'sea')}`} /><Row k="Lowest pressure" v={t.lowest_pressure_hPa + ' hPa'} /><Row k="Depth below plain forecast" v={t.depth_hPa + ' hPa'} /><Row k="Strongest wind near centre" v={t.strongest_wind_m_s + ' m/s'} /></>}
-      <span className="mono" style={{ fontSize: 10, color: '#9FC2B6' }}>Track: {m.track.map(x => `d${x.day} ${x.lat}°N ${x.lon}°E`).join(' → ')}</span>
-      {m.notes.map((n, i) => <p key={i} style={{ margin: 0, fontSize: 11, color: i < m.notes.length - 1 ? '#F2B26B' : '#9FC2B6' }}>{n}</p>)}
+      <span className="mono" style={{ fontSize: 10, color: 'var(--text-faint)' }}>Track: {m.track.map(x => `d${x.day} ${x.lat}°N ${x.lon}°E`).join(' → ')}</span>
+      {m.notes.map((n, i) => <p key={i} style={{ margin: 0, fontSize: 11, color: i < m.notes.length - 1 ? 'var(--warn)' : 'var(--text-faint)' }}>{n}</p>)}
       <span className="cap">10-DAY RAIN CHANGE BY STATE</span>{m.rain_change_by_state_mm.map(s => <Row key={s.state} k={s.state} v={sgn(s.change_mm, 0) + ' mm'} />)}</>;
   } else if (run.id === 'heavy_rain') { const p = day > 0 ? m.per_day[d1] : null;
     body = <>{p && <><Row k="Largest 3-day total" v={p.max_3day_total_mm + ' mm'} /><Row k="Largest 3-day change" v={sgn(p.max_3day_change_mm, 1) + ' mm'} />
       {Object.entries(p.area_kkm2_by_category).map(([k, v]) => <Row key={k} k={'IMD ' + k.replace('_', ' ')} v={v + ' thousand km²'} />)}</>}
       <span className="cap">STATES BY LARGEST 3-DAY TOTAL</span>{m.states_by_max_3day_total_mm.map(s => <Row key={s.state} k={s.state} v={fmt(s.max_3day_total_mm, 0) + ' mm'} />)}
-      <span style={{ fontSize: 10, color: '#9FC2B6' }}>{m.categories}</span></>;
+      <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{m.categories}</span></>;
   } else if (run.id === 'heatwave') {
     body = <>{day > 0 && <Row k="Heat-stress area (≥ 3 °C above normal)" v={m.heat_stress_area_kkm2_per_day[d1] + ' thousand km²'} />}<Row k="Days it persists" v={m.days_it_persists + ' of 10'} />
       <span className="cap">HOTTEST STATES (10-DAY MEAN)</span>{m.hottest_states_mean_C.map(s => <Row key={s.state} k={s.state} v={s.mean_C + ' °C'} />)}</>;
   } else if (run.id === 'monsoon_onset') { const p = day > 0 ? m.per_day[d1] : null;
     body = <>{p && <Row k="Monsoon reaches (rain ≥ 5 mm/day)" v={`with ${p.with ?? '—'}°N · without ${p.without ?? '—'}°N`} />}
-      <span className="mono" style={{ fontSize: 10, color: '#9FC2B6' }}>{m.per_day.map(x => `+${x.day}: ${x.with}`).join(' · ')}</span></>;
+      <span className="mono" style={{ fontSize: 10, color: 'var(--text-faint)' }}>{m.per_day.map(x => `+${x.day}: ${x.with}`).join(' · ')}</span></>;
   } else if (run.id === 'western_disturbance') {
     body = <>{day > 0 && m.states.map(s => <Row key={s.state} k={s.state} v={`rain ${s.rain_with_mm_per_day[d1]} vs ${s.rain_without_mm_per_day[d1]} mm · ${sgn(s.temperature_change_K[d1], 1)} °C`} />)}
-      <span style={{ fontSize: 10, color: '#9FC2B6' }}>{m.note}</span></>;
+      <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{m.note}</span></>;
   }
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span className="cap" style={{ color: 'rgb(110,200,235)' }}>{run.title.split(' · ')[0].toUpperCase()} DETAILS</span>{body}</div>;
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span className="cap">{run.title.split(' · ')[0].toUpperCase()} DETAILS</span>{body}</div>;
 }
 
 // ---- Impact dashboard ------------------------------------------------------------------------------------------
-const LEVEL_C = { Low: '127,216,190', Moderate: '233,215,138', High: '242,178,107', Severe: '224,122,79' };
+const LEVEL_C = { Low: '121,135,110', Moderate: '233,215,138', High: '242,178,107', Severe: '224,122,79' };
 const tfmt = (x, u) => (u === '%' ? fmt(x, 1) + '%' : fmt(x, 1) + ' ' + u);
 /** headline value + what it means, per tile */
 function tval(t) { const b = t.branch;
@@ -403,37 +404,37 @@ function Spark({ t, day }) {
   const pt = (s, k) => [(k / (s.length - 1)) * (W - 8) + 4, H - 12 - ((s[k] - lo) / r) * (H - 18)];
   const line = s => s.map((_, k) => pt(s, k).join(',')).join(' '), c = `rgb(${LEVEL_C[t.branch.level]})`;
   const [x, y] = pt(b, Math.min(day, b.length - 1));
-  return <svg width={W} height={H} role="img" aria-label={`${t.name} over days 0 to 10`} style={{ display: 'block' }}>
-    <polyline points={line(a)} fill="none" stroke="rgba(191,217,208,0.55)" strokeWidth="1.4" strokeDasharray="3 3" />
+  return <svg width={W} height={H} role="img" aria-label={`${t.name} over days 0 to 10`} style={{ display: 'block', color: 'var(--text-faint)' }}>
+    <polyline points={line(a)} fill="none" stroke="currentColor" strokeWidth="1.4" strokeDasharray="3 3" />
     <polyline points={line(b)} fill="none" stroke={c} strokeWidth="1.8" />
     <circle cx={x} cy={y} r="3" fill={c} />
-    <text x="4" y={H - 1} fontSize="9" fill="#9FC2B6">day 0</text><text x={W - 34} y={H - 1} fontSize="9" fill="#9FC2B6">day 10</text></svg>;
+    <text x="4" y={H - 1} fontSize="9" fill="currentColor">day 0</text><text x={W - 34} y={H - 1} fontSize="9" fill="currentColor">day 10</text></svg>;
 }
 
 function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
-  if (!imp) return <div data-testid="impact-row" style={{ alignSelf: 'center', marginBottom: 10, fontSize: 12, color: '#9FC2B6' }}>Computing impacts (16 live model runs)…</div>;
+  if (!imp) return <div data-testid="impact-row" style={{ alignSelf: 'center', marginBottom: 10, fontSize: 12, color: 'var(--text-faint)' }}>Computing impacts (16 live model runs)…</div>;
   return <section aria-label="Impact dashboard" data-testid="impact-row" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 'calc(100% - 660px)', minWidth: 300 }}>
-    {imp.tiles.map(t => { const c = t.active ? LEVEL_C[t.branch.level] : '159,194,182', on = sel === t.id, cf = t.confidence;
+    {imp.tiles.map(t => { const c = t.active ? LEVEL_C[t.branch.level] : '121,135,110', on = sel === t.id, cf = t.confidence;
       const agree = !cf ? '' : imp.has_change ? `${cf.same_direction}/${cf.members} agree` : `${cf.same_level}/${cf.members} agree`;
       return <div key={t.id} style={{ position: 'relative' }}>
         <div role="button" tabIndex={0} aria-pressed={on} data-testid={'impact-' + t.id} onClick={() => pick(t)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && pick(t)} className="glass"
-          style={{ width: 156, padding: '8px 10px', borderRadius: 14, cursor: t.active ? 'pointer' : 'default', border: `1px solid rgba(${c},${on ? 0.95 : 0.4})`, boxShadow: on ? `0 0 14px rgba(${c},0.35)` : 'none', display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
+          style={{ width: 156, padding: '8px 10px', borderRadius: 12, cursor: t.active ? 'pointer' : 'default', border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--hairline)'), borderLeft: `3px solid rgb(${c})`, background: on ? 'var(--accent-soft)' : undefined, display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
           <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}><span className="cap" style={{ letterSpacing: '0.08em' }}>{t.name.toUpperCase()}</span>
-            {t.active && <span data-testid={'level-' + t.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `rgba(${c},0.2)`, color: `rgb(${c})` }}>{t.branch.level}</span>}</span>
+            {t.active && <span data-testid={'level-' + t.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `rgba(${c},0.3)`, color: 'var(--text-strong)' }}>{t.branch.level}</span>}</span>
           {t.active ? <>
-            <span className="fred" style={{ fontSize: 20, fontWeight: 500, color: '#F2FBF7' }}>{tval(t)[0]}</span>
-            <span data-testid={'meaning-' + t.id} style={{ fontSize: 10, lineHeight: 1.3, color: '#BFD9D0' }}>{tval(t)[1]}</span>
-            <span className="mono" style={{ fontSize: 11, color: imp.has_change && t.delta !== 0 ? '#F5EBC0' : '#9FC2B6' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + dunit(t) + ' vs plain' : 'plain forecast'}</span>
-            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#9FC2B6' }}><span title="ensemble members agreeing">{agree}</span>
-              <button type="button" aria-expanded={why === t.id} onClick={e => { e.stopPropagation(); setWhy(why === t.id ? null : t.id); }} style={{ ...btn, minHeight: 22, padding: '0 8px', fontSize: 10, border: '1px solid rgba(159,194,182,0.35)', background: 'transparent' }}>Why? {why === t.id ? '▴' : '▾'}</button></span>
-          </> : <span style={{ fontSize: 11, color: '#9FC2B6' }}>Off season (Jun–Sep only)</span>}
+            <span className="fred" style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-strong)' }}>{tval(t)[0]}</span>
+            <span data-testid={'meaning-' + t.id} style={{ fontSize: 10, lineHeight: 1.3, color: 'var(--text-muted)' }}>{tval(t)[1]}</span>
+            <span className="mono" style={{ fontSize: 11, color: imp.has_change && t.delta !== 0 ? 'var(--text-strong)' : 'var(--text-faint)' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + dunit(t) + ' vs plain' : 'plain forecast'}</span>
+            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--text-faint)' }}><span title="ensemble members agreeing">{agree}</span>
+              <button type="button" aria-expanded={why === t.id} onClick={e => { e.stopPropagation(); setWhy(why === t.id ? null : t.id); }} style={{ ...btn, minHeight: 22, padding: '0 8px', fontSize: 10, border: '1px solid var(--accent-edge)', background: 'transparent' }}>Why? {why === t.id ? '▴' : '▾'}</button></span>
+          </> : <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Off season (Jun–Sep only)</span>}
         </div>
-        {why === t.id && t.active && <div role="region" aria-label={t.name + ' explanation'} data-testid={'why-' + t.id} className="glass" style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', width: 260, padding: 12, borderRadius: 14, zIndex: 6, border: `1px solid rgba(${c},0.5)`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {why === t.id && t.active && <div role="region" aria-label={t.name + ' explanation'} data-testid={'why-' + t.id} className="glass" style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', width: 260, padding: 12, borderRadius: 12, zIndex: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <Spark t={t} day={day} />
-          <span style={{ fontSize: 10, color: '#9FC2B6' }}>{imp.has_change ? 'solid: with the change · dashed: plain forecast' : 'daily value, day 0 (start) to day 10'}</span>
-          {t.explanation.map((x, i) => <p key={i} style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#E7F2EE' }}>{x}</p>)}
+          <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{imp.has_change ? 'solid: with the change · dashed: plain forecast' : 'daily value, day 0 (start) to day 10'}</span>
+          {t.explanation.map((x, i) => <p key={i} style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: 'var(--text)' }}>{x}</p>)}
         </div>}
       </div>; })}
-    <span style={{ width: '100%', textAlign: 'center', fontSize: 10, color: '#9FC2B6' }}>Screening proxies from live model runs, not official warnings · click a tile to show its layer and area{sel === 'solar' ? ' · clouds = cloud proxy from moisture and rain' : ''}</span>
+    <span style={{ width: '100%', textAlign: 'center', fontSize: 10, color: 'var(--text-faint)' }}>Screening proxies from live model runs, not official warnings · click a tile to show its layer and area{sel === 'solar' ? ' · clouds = cloud proxy from moisture and rain' : ''}</span>
   </section>;
 }

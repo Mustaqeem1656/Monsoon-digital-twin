@@ -9,6 +9,7 @@ import '@fontsource/fredoka/500.css';
 import '@fontsource/fredoka/600.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
+import './styles/tokens.css';
 import './styles.css';
 import App from './App.jsx';
 

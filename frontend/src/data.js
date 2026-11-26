@@ -24,7 +24,7 @@ export const LAYERS = [
 export const TILES = [
   { id: 'terrain', name: 'Terrain', thumb: 'linear-gradient(135deg,#2F5A3B 0%,#6F8B55 45%,#BDB9A4 75%,#EEF1F2 100%)' },
   { id: 'elev', name: 'Elevation', thumb: 'repeating-linear-gradient(160deg,#2E6B4F 0 6px,#9DAA62 6px 7px,#C9B26B 7px 13px,#B07A4F 13px 14px)' },
-  { id: 'borders', name: 'Borders', thumb: 'linear-gradient(115deg,#0B2C48 0 46%,#6BE6FF 46% 50%,#2F5A3B 50% 72%,#FFD66B 72% 75%,#3A6A45 75%)' },
+  { id: 'borders', name: 'Borders', thumb: 'linear-gradient(115deg,#0B2C48 0 46%,#79876E 46% 50%,#2F5A3B 50% 72%,#FFD66B 72% 75%,#3A6A45 75%)' },
   { id: 'heat', name: 'Heat', w: 't2m', thumb: 'linear-gradient(90deg,#3B6FB6,#BFE3C8,#F1E29A,#E07A4F,#B9473A)' },
   { id: 'rain', name: 'Rain', w: 'tp', thumb: 'radial-gradient(circle at 30% 40%,#5B3FB3 0 12%,#3E8FD6 22%,transparent 42%),radial-gradient(circle at 72% 65%,#3557C2 0 10%,#7CC3E6 26%,transparent 44%),#1A3346' },
   { id: 'wind', name: 'Wind', w: 'ws', thumb: 'repeating-linear-gradient(170deg,#0E2230 0 5px,#CFEFE6 5px 6px,#0E2230 6px 11px)' },

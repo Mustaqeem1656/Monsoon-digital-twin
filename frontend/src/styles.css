@@ -1,11 +1,19 @@
 html, body, #root { margin: 0; height: 100%; background: #02050A; }
 body { color: #E7F2EE; font-family: Inter, system-ui, sans-serif; }
-a { color: #7FD8BE; } a:hover { color: #B9F0DE; }
+a { color: var(--text-strong); } a:hover { color: var(--text); }
 button { font-family: inherit; }
 .fred { font-family: Fredoka, sans-serif; }
 .mono { font-family: 'JetBrains Mono', monospace; }
-.glass { background: rgba(5,16,20,0.62); border: 1px solid rgba(127,216,190,0.16); backdrop-filter: blur(14px); }
-.cap { font-size: 10px; letter-spacing: 0.2em; color: #9FC2B6; }
+.glass { background: var(--panel-bg); border: 1px solid var(--hairline); border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); color: var(--text); backdrop-filter: blur(14px); }
+.cap { font-size: 10px; letter-spacing: 0.2em; color: var(--text-muted); }
 .panel { position: absolute; right: 84px; top: 128px; z-index: 5; width: 360px; max-width: calc(100% - 48px);
-  max-height: calc(100% - 230px); overflow: auto; padding: 16px; border-radius: 16px; background: rgba(5,16,20,0.88);
-  border: 1px solid rgba(233,215,138,0.35); backdrop-filter: blur(16px); display: flex; flex-direction: column; gap: 12px; }
+  max-height: calc(100% - 230px); overflow: auto; padding: 16px; border-radius: var(--panel-radius); background: var(--panel-bg);
+  border: 1px solid var(--hairline); box-shadow: var(--panel-shadow); color: var(--text); backdrop-filter: blur(16px); display: flex; flex-direction: column; gap: 12px; }
+.mono, .fred { font-variant-numeric: tabular-nums; }
+/* sliders: flat sage fill (left of the thumb, set by --fill), --track for the rest; white thumb with a sage ring */
+input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; margin: 8px 0;
+  background: linear-gradient(to right, var(--accent) 0 var(--fill, 50%), var(--track) var(--fill, 50%) 100%); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(121,135,110,0.35); cursor: pointer; }
+input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #FFFFFF; box-shadow: 0 0 0 3px rgba(121,135,110,0.35); }
+input[type=checkbox] { accent-color: var(--accent); }

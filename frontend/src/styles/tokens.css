@@ -1,0 +1,19 @@
+/* UI colour tokens (Cream + Sage). Panels reference only these. Globe / map data colours are not here.
+   --text-muted and --text-faint are darker than the design values (#5C6651, #66735C) so small text keeps
+   WCAG AA 4.5:1 even where black space shows through the 0.78 cream panel. */
+:root {
+  --panel-bg: rgba(247,247,229,0.78);
+  --panel-blur: blur(8px) saturate(1.1);
+  --accent: #79876E;
+  --text-strong: #2F3629;
+  --text: #3E4636;
+  --text-muted: #474F3F;
+  --text-faint: #475040;
+  --hairline: rgba(62,70,54,0.14);
+  --accent-soft: rgba(121,135,110,0.16);
+  --accent-edge: rgba(121,135,110,0.55);
+  --track: rgba(121,135,110,0.25);
+  --warn: #764011;
+  --panel-radius: 12px;
+  --panel-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
