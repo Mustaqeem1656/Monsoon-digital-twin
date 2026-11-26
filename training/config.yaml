@@ -1,0 +1,37 @@
+# Training settings. Every line is safe to change; the comment says what it does.
+
+seed: 42                    # fixed random seed so a rerun gives the same model
+device: cuda                # "cuda" = train on the GPU; "cpu" works too but is ~20x slower
+amp: true                   # mixed precision (bfloat16) on the GPU: faster, same accuracy for this model size
+out: weights/model.pt       # where the best checkpoint is saved (Git LFS tracks weights/*.pt)
+
+model:
+  width: 96                 # channels per layer: bigger = smarter but slower (CPU time grows ~ width^2)
+  n_blocks: 3               # residual blocks; each adds 2 cells of reach per day. 3 -> 7 cells/day (judge limit 8)
+
+data:
+  train_years: [2005, 2018] # first and last training year (inclusive)
+  val_years: [2019, 2021]   # first and last validation year (inclusive); never used to fit weights
+  val_every_nth: 3          # validate on every 3rd start day (faster; still ~360 windows)
+
+loss:
+  rain_heavy_mm: 10.0       # rain above this (mm/day) counts as "heavy" (the judge's CSI threshold)
+  rain_heavy_weight: 4.0    # how much extra a heavy-rain cell counts in the loss (1 + this); raise for better CSI
+  rain_channel_weight: 1.5  # weight of the rain channel vs the other 5 channels (all others = 1)
+  variance_weight: 0.05     # anti-blur: penalty when a forecast map's spatial variance differs from the real one
+  input_noise: 0.02         # small random noise (in std units) added to inputs while training, for stability; 0 = off
+
+stage_a:                    # Stage A: learn a single day ahead
+  epochs: 30                # passes over all training days
+  lr: 1.0e-3                # learning rate (peak; it decays smoothly to ~0 by the end of the stage)
+  batch_size: 32            # windows per step; lower it if the GPU runs out of memory
+
+stage_b:                    # Stage B: learn to roll forward on its own outputs (autoregressive fine-tuning)
+  horizons: [2, 4, 8]       # rollout lengths, trained in this order (backprop through the whole rollout)
+  epochs_per_horizon: [6, 6, 8]   # epochs spent at each horizon above
+  lr: 2.0e-4                # learning rate for fine-tuning (smaller than stage A)
+  batch_size: [16, 8, 4]    # windows per step at each horizon (longer rollouts use more memory)
+
+val_rollout_steps: 8        # the best checkpoint is the one with the lowest 8-day-rollout validation error
+max_batches_per_epoch: 0    # 0 = use all data; a small number (e.g. 3) gives a quick smoke test
+grade_after: true           # run the local grader on the saved model when training finishes

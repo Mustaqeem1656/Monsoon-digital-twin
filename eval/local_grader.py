@@ -117,6 +117,7 @@ def grade(call, n_random=20, shock_bases=1, verbose=True):
     std = load_std()
     wins = pick_windows(n_random)
     ss_w, csi_w, blur, sp_day4, times, invalid = [], [], [], [], [], []
+    acc = {k: [] for k in ('m', 'p', 'c', 't')}                       # leads-only arrays for the per-channel table
     rows = []
     for label, t in wins:
         init, truth, clim_f, doy_sc, d = window_arrays(t)
@@ -131,6 +132,7 @@ def grade(call, n_random=20, shock_bases=1, verbose=True):
         sp_day4.append(sk4["rmse"] / np.maximum(S.rmse_lat(pers[3:4], truth[3:4]), 1e-12))
         c_m = S.csi(out[LEADS, 1], truth[LEADS, 1])
         cs = S.csi_skill(c_m, S.csi(pers[LEADS, 1], truth[LEADS, 1]), S.csi(clim_f[LEADS, 1], truth[LEADS, 1]))
+        acc['m'].append(out[LEADS]); acc['p'].append(pers[LEADS]); acc['c'].append(clim_f[LEADS]); acc['t'].append(truth[LEADS])
         ss_w.append(ss); csi_w.append(cs); blur.append(S.variance_ratio(out[7], truth[7]))
         rows.append((label, d, ss, cs, float(np.nanmean(sk["ss_persist"])), wall, []))
 
@@ -168,6 +170,14 @@ def grade(call, n_random=20, shock_bases=1, verbose=True):
         for label, d, ss, cs, spp, wall, bad in rows:
             f = lambda x: "   nan" if x is None or not np.isfinite(x) else f"{x:+7.3f}"
             print(f"{label:28s} {str(d):>10s} {f(ss)} {f(cs)} {f(spp)} {wall:5.2f} {'INVALID ' + str(bad) if bad else ''}")
+        if acc['m']:
+            A = {k: np.stack(v) for k, v in acc.items()}
+            print("\nlat-weighted RMSE in std units, model / persistence / climatology, then skill vs the better ref:")
+            print("  lead" + "".join(f"{c:>21s}" for c in C.CHANNELS))
+            for li, lead in enumerate(C.LEAD_DAYS):
+                r = {k: S.rmse_lat(A[k][:, li], A['t'][:, li]) / std for k in 'mpc'}
+                print(f"  d{lead:<3d}" + "".join(f"  {r['m'][c]:5.3f}/{r['p'][c]:5.3f}/{r['c'][c]:5.3f}" for c in range(6)))
+                print("    SS" + "".join(f"{v:+21.3f}" for v in 1 - r['m'] / np.minimum(r['p'], r['c'])))
         print("\nshocks:")
         for n, r in shock_res:
             print(f"  {n:40s} nonzero={r['nonzero']!s:5} localized={r['localized']!s:5} (day1 near={r.get('near_frac_day1', 0):.2f}) "
