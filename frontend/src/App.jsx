@@ -300,15 +300,16 @@ export default function App() {
         <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'space-between', gap: 24, padding: '4px 24px 12px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16, maxWidth: 'min(560px, 48vw)', minWidth: 0 }}>
             {!run ? <div aria-live="polite" aria-label="Current conditions" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span className="cap" style={{ color: '#9FC2B6' }}>CURRENT CONDITIONS · {scenDate.toUpperCase()}</span>
               {cond ? <>
                 <span className="fred" style={{ fontWeight: 500, fontSize: 'clamp(34px, 3.6vw, 56px)', lineHeight: 1, color: 'rgba(231,242,238,0.75)' }}>{cond.place}</span>
                 <span className="mono" style={{ fontSize: 12, letterSpacing: '0.08em', color: '#BFD9D0' }}>{cond.ll}</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: '10px 26px', marginTop: 6, justifyContent: 'start' }}>
                   {cond.rows.map(([k, v, u]) => <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span style={{ fontSize: 10, letterSpacing: '0.18em', color: '#9FC2B6' }}>{k}</span>
                     <span className="fred" style={{ fontWeight: 500, fontSize: 'clamp(24px, 2.4vw, 36px)', lineHeight: 1, color: 'rgba(231,242,238,0.78)' }}>{v}<span style={{ fontSize: '0.45em', fontWeight: 400, marginLeft: 4, color: 'rgba(231,242,238,0.55)' }}>{u}</span></span></div>)}
-                </div></> : <span className="fred" style={{ fontSize: 22, color: 'rgba(231,242,238,0.6)' }}>{err || 'Point at India to read the weather there'}</span>}
-              <span className="mono" style={{ fontSize: 11, letterSpacing: '0.06em', color: '#9FC2B6', marginTop: 4 }}>DRAG TO ORBIT · SCROLL TO ZOOM · HOVER INDIA</span>
+                </div></> : null}
+              <div className="glass" style={{ alignSelf: 'flex-start', padding: '8px 12px', marginTop: cond ? 4 : 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {!cond && <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{err || 'Point at India to read the weather there'}</span>}
+                <span style={{ fontSize: 11, letterSpacing: '0.06em', color: 'var(--text-muted)' }}>DRAG TO ORBIT · SCROLL TO ZOOM · HOVER INDIA</span></div>
             </div> : <div />}
 
             <section aria-label="Layers and view" className="glass" style={{ pointerEvents: 'auto', width: 300, maxWidth: '100%', padding: 12, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
