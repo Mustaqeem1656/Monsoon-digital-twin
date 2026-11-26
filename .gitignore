@@ -6,3 +6,6 @@ backend/tools/plots/
 cache/
 backend/gateway/presets/*.npz
 backend/gateway/static/clim_pentad.npz
+frontend/node_modules/
+frontend/dist/
+frontend/tests/shots/

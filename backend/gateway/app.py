@@ -166,7 +166,13 @@ def geography():
                   "land_sea_mask": _r(g["lsm"]), "orography_m": _r(g["orography_m"]),
                   "regions": {k: m[k] for k in ("lat0", "lon0", "res", "nrows", "ncols", "row_order", "names", "rle",
                                                 "indian_state_codes", "sources")},
-                  "cell_region": major.tolist()})
+                  "cell_region": major.tolist(), "elevation": _elevation()})
+
+
+@lru_cache(maxsize=1)
+def _elevation():
+    p = HERE / "static" / "elevation.json"
+    return json.loads(p.read_text()) if p.exists() else None
 
 
 @app.get("/shocks")

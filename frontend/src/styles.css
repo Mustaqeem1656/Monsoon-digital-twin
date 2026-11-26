@@ -1,0 +1,11 @@
+html, body, #root { margin: 0; height: 100%; background: #02050A; }
+body { color: #E7F2EE; font-family: Inter, system-ui, sans-serif; }
+a { color: #7FD8BE; } a:hover { color: #B9F0DE; }
+button { font-family: inherit; }
+.fred { font-family: Fredoka, sans-serif; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.glass { background: rgba(5,16,20,0.62); border: 1px solid rgba(127,216,190,0.16); backdrop-filter: blur(14px); }
+.cap { font-size: 10px; letter-spacing: 0.2em; color: #9FC2B6; }
+.panel { position: absolute; right: 84px; top: 128px; z-index: 5; width: 360px; max-width: calc(100% - 48px);
+  max-height: calc(100% - 230px); overflow: auto; padding: 16px; border-radius: 16px; background: rgba(5,16,20,0.88);
+  border: 1px solid rgba(233,215,138,0.35); backdrop-filter: blur(16px); display: flex; flex-direction: column; gap: 12px; }

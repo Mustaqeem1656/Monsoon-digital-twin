@@ -28,7 +28,7 @@ A fast, physics-aware digital twin of India's daily weather:
 - `serve.py` (root) — inference server only; imports the model from `backend/model`, weights from `backend/weights` (paths relative to its own file)
 - `training/` (root) — training code + config.yaml; saves to `backend/weights/`
 - `backend/model/` network + inference runtime; `backend/weights/` (Git LFS: *.pt, *.onnx); `backend/eval/` baselines + local grader; `backend/gateway/` dashboard backend; `backend/tools/` one-off scripts
-- `frontend/` 3D dashboard (blueprint in `frontend/blueprint/`); `brief/` 2-page PDF material
+- `frontend/` 3D dashboard: Vite + React + three.js (`src/engine/` = mockup logic, `src/App.jsx` = UI), textures in `frontend/public/textures/`, approved design in `frontend/blueprint/`. Talks only to the gateway. `npm run dev` / `npm run test:e2e`. `brief/` 2-page PDF material
 - `data/`, `cache/` at the root, git-ignored. Run modules from the root: `python -m backend.eval.local_grader`, `python -m backend.gateway.app`
 
 ## Working rules

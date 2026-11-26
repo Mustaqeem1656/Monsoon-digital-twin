@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Monsoon Digital Twin — 3D India globe</title>
+<script src="./support.js"></script>
+<script src="/_blob/340cfa6cdf65ff6be0f91221b98d65da"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Fredoka:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#02050A}
+a{color:#7FD8BE}a:hover{color:#B9F0DE}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="position:relative;height:100vh;min-height:680px;overflow:hidden;background:#02050A;color:#E7F2EE;font-family:Inter, system-ui, sans-serif">
+  <canvas ref="{{setCanvas}}" aria-label="Interactive 3D Earth centred on India with the Sun, Moon and planets in their real directions. Drag to orbit, scroll to zoom, shift-drag or right-drag to roll." role="img" style="position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none"></canvas>
+
+  <sc-if value="{{tip.on}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:{{tip.x}}px;top:{{tip.y}}px;transform:translate(18px, 18px);pointer-events:none;min-width:200px;padding:10px 12px;border-radius:12px;background:rgba(5,16,20,0.8);border:1px solid rgba(127,216,190,0.3);backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:4px;z-index:3">
+      <span style="font-family:Fredoka, sans-serif;font-weight:600;font-size:14px;letter-spacing:0.05em;color:#F2FBF7">{{tip.region}}</span>
+      <span style="font-family:'JetBrains Mono', monospace;font-size:12px;color:#BFD9D0">{{tip.ll}}</span>
+      <span style="font-family:'JetBrains Mono', monospace;font-size:12px;color:#9FE3CF">{{tip.elev}}</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{placing}}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:4;pointer-events:none;padding:10px 16px;border-radius:999px;background:rgba(233,215,138,0.16);border:1px solid rgba(233,215,138,0.7);color:#F5EBC0;font-size:13px">Click anywhere in the study area to drop the shock · the ring shows its size</div>
+  </sc-if>
+  <sc-if value="{{panelBuild}}" hint-placeholder-val="{{ false }}">
+    <section aria-label="Create a shock" style="position:absolute;right:84px;top:84px;z-index:5;width:360px;max-width:calc(100% - 48px);max-height:calc(100% - 180px);overflow:auto;padding:16px;border-radius:16px;background:rgba(5,16,20,0.88);border:1px solid rgba(233,215,138,0.35);backdrop-filter:blur(16px);display:flex;flex-direction:column;gap:12px">
+      <div>
+        <h2 style="margin:0;font-family:Fredoka, sans-serif;font-weight:600;font-size:18px;color:#F5EBC0">Create a shock</h2>
+        <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#BFD9D0">Pick what happens, drop it anywhere on the map, and watch how far it spreads over 10 days compared with the real timeline.</p>
+      </div>
+      <span style="font-size:10px;letter-spacing:0.2em;color:#9FC2B6">1 · WHAT HAPPENS</span>
+      <div role="group" aria-label="Shock type" style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:4px">
+        <sc-for list="{{scens}}" as="sc" hint-placeholder-count="7">
+          <button type="button" onClick="{{sc.pick}}" aria-pressed="{{sc.pressed}}" style="min-height:44px;padding:2px 4px;border-radius:10px;border:1px solid {{sc.border}};background:{{sc.bg}};color:#E7F2EE;font-size:12px;line-height:1.2;cursor:pointer">{{sc.name}}</button>
+        </sc-for>
+      </div>
+      <p style="margin:0;font-size:12px;line-height:1.5;color:#E7F2EE">{{scenText}}</p>
+      <sc-if value="{{isCustom}}" hint-placeholder-val="{{ false }}">
+        <div role="group" aria-label="Variable to change" style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:4px">
+          <sc-for list="{{cvars}}" as="cv" hint-placeholder-count="4">
+            <button type="button" onClick="{{cv.pick}}" aria-pressed="{{cv.pressed}}" style="min-height:36px;border-radius:10px;border:1px solid {{cv.border}};background:{{cv.bg}};color:#E7F2EE;font-size:11px;cursor:pointer">{{cv.name}}</button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#BFD9D0">Strength: <span style="font-family:'JetBrains Mono', monospace;color:#F5EBC0">{{amtText}}</span>
+        <input type="range" min="{{amtMin}}" max="{{amtMax}}" step="{{amtStep}}" value="{{camt}}" onInput="{{setAmt}}" style="accent-color:#E9D78A">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#BFD9D0">Size: <span style="font-family:'JetBrains Mono', monospace;color:#F5EBC0">{{radText}}</span>
+        <input type="range" min="1" max="8" step="1" value="{{crad}}" onInput="{{setRad}}" style="accent-color:#E9D78A">
+      </label>
+      <span style="font-size:10px;letter-spacing:0.2em;color:#9FC2B6">2 · WHERE</span>
+      <button type="button" onClick="{{startPlacing}}" aria-pressed="{{placingPressed}}" style="min-height:44px;border-radius:10px;border:1px solid rgba(233,215,138,0.7);background:rgba(233,215,138,0.14);color:#F5EBC0;font-size:13px;font-weight:600;cursor:pointer">{{placeText}}</button>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <sc-for list="{{quick}}" as="q" hint-placeholder-count="2">
+          <button type="button" onClick="{{q.pick}}" style="min-height:36px;padding:0 10px;border-radius:999px;border:1px solid rgba(159,194,182,0.35);background:transparent;color:#BFD9D0;font-size:11px;cursor:pointer">{{q.name}}</button>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" onClick="{{closeShock}}" style="min-height:40px;padding:0 14px;border-radius:10px;border:1px solid rgba(159,194,182,0.35);background:transparent;color:#BFD9D0;font-size:13px;cursor:pointer">Cancel</button>
+        <button type="button" onClick="{{runBranch}}" disabled="{{runDisabled}}" style="min-height:40px;padding:0 16px;border-radius:10px;border:1px solid rgba(233,215,138,0.8);background:rgba(233,215,138,0.2);color:#F5EBC0;font-size:13px;font-weight:600;cursor:pointer;opacity:{{runOpacity}}">Run the shock</button>
+      </div>
+      <p style="margin:0;font-size:11px;line-height:1.5;color:#9FC2B6">Mockup: the spread is a simple preview. In the final app it comes from your model's /simulate.</p>
+    </section>
+  </sc-if>
+  <sc-if value="{{panelOutcome}}" hint-placeholder-val="{{ false }}">
+    <section aria-label="Shock outcome" style="position:absolute;right:84px;top:84px;z-index:5;width:340px;max-width:calc(100% - 48px);max-height:calc(100% - 180px);overflow:auto;padding:16px;border-radius:16px;background:rgba(5,16,20,0.86);border:1px solid rgba(233,215,138,0.35);backdrop-filter:blur(16px);display:flex;flex-direction:column;gap:12px">
+      <div>
+        <span style="font-size:10px;letter-spacing:0.2em;color:#E9D78A">OUTCOME · {{oc.dayLabel}}</span>
+        <h2 style="margin:4px 0 0;font-family:Fredoka, sans-serif;font-weight:600;font-size:18px;color:#F5EBC0">{{oc.title}}</h2>
+        <p style="margin:4px 0 0;font-size:12px;color:#BFD9D0">{{oc.where}}</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:8px">
+        <div><div style="font-family:Fredoka, sans-serif;font-weight:500;font-size:24px">{{oc.spread}}</div><div style="font-size:11px;color:#9FC2B6">km reached</div></div>
+        <div><div style="font-family:Fredoka, sans-serif;font-weight:500;font-size:24px">{{oc.area}}</div><div style="font-size:11px;color:#9FC2B6">thousand km² affected</div></div>
+        <div><div style="font-family:Fredoka, sans-serif;font-weight:500;font-size:24px">{{oc.peak}}</div><div style="font-size:11px;color:#9FC2B6">{{oc.peakUnit}}</div></div>
+      </div>
+      <span style="font-size:10px;letter-spacing:0.2em;color:#9FC2B6">MOST AFFECTED STATES · {{oc.metric}}</span>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <sc-for list="{{oc.states}}" as="st" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+            <span style="flex:1;color:#E7F2EE">{{st.name}}</span>
+            <span style="width:90px;height:6px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden"><span style="display:block;height:100%;width:{{st.w}}%;background:{{st.col}}"></span></span>
+            <span style="width:64px;text-align:right;font-family:'JetBrains Mono', monospace;color:#F5EBC0">{{st.v}}</span>
+          </div>
+        </sc-for>
+        <span style="font-size:12px;color:#9FC2B6">{{oc.none}}</span>
+      </div>
+      <p style="margin:0;font-size:11px;line-height:1.5;color:#9FC2B6">Use the timeline below to watch it spread day by day. Peak spread: {{oc.peakDay}}.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" onClick="{{openShock}}" style="min-height:40px;padding:0 14px;border-radius:10px;border:1px solid rgba(233,215,138,0.7);background:rgba(233,215,138,0.12);color:#F5EBC0;font-size:13px;cursor:pointer">New shock</button>
+        <button type="button" onClick="{{closeOutcome}}" style="min-height:40px;padding:0 14px;border-radius:10px;border:1px solid rgba(159,194,182,0.35);background:transparent;color:#BFD9D0;font-size:13px;cursor:pointer">Close</button>
+      </div>
+    </section>
+  </sc-if>
+
+  <div style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;z-index:2">
+    <header style="pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:16px 24px;background:linear-gradient(rgba(2,5,10,0.9), rgba(2,5,10,0))">
+      <div style="display:flex;align-items:center;gap:12px">
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><circle cx="13" cy="13" r="11.5" stroke="#7FD8BE" stroke-width="1.4"></circle><ellipse cx="13" cy="13" rx="5" ry="11.5" stroke="#7FD8BE" stroke-opacity="0.55"></ellipse><path d="M2 13h22" stroke="#7FD8BE" stroke-opacity="0.55"></path></svg>
+        <div>
+          <div style="font-family:Fredoka, sans-serif;font-weight:600;font-size:16px;letter-spacing:0.16em;color:#F2FBF7">MONSOON DIGITAL TWIN</div>
+          <div style="font-size:11px;letter-spacing:0.12em;color:#9FC2B6">INDIA STUDY AREA · 6–38°N · 65–101°E</div>
+        </div>
+      </div>
+      <nav aria-label="Universes" style="display:flex;gap:8px;flex-wrap:wrap">
+        <sc-for list="{{unis}}" as="u" hint-placeholder-count="1">
+          <button type="button" onClick="{{u.pick}}" aria-pressed="{{u.pressed}}" style="min-height:40px;padding:0 16px;border-radius:999px;border:1px solid {{u.border}};background:{{u.bg}};color:#E7F2EE;font-size:13px;font-weight:600;cursor:pointer">{{u.name}}</button>
+        </sc-for>
+        <sc-if value="{{showOutcomeBtn}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{openOutcome}}" style="min-height:40px;padding:0 14px;border-radius:999px;border:1px solid rgba(233,215,138,0.6);background:rgba(233,215,138,0.1);color:#F5EBC0;font-size:13px;cursor:pointer">Outcome</button></sc-if>
+        <button type="button" onClick="{{openShock}}" style="min-height:40px;padding:0 16px;border-radius:999px;border:1px dashed rgba(159,194,182,0.55);background:transparent;color:#BFD9D0;font-size:13px;cursor:pointer">+ Branch a universe</button>
+      </nav>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;font-size:12px;color:#BFD9D0">
+        <span style="font-family:'JetBrains Mono', monospace;color:#E7F2EE">{{clock}}</span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#7FD8BE;box-shadow:0 0 10px #7FD8BE"></span>Engine ready</span>
+        <span style="font-family:'JetBrains Mono', monospace;color:#9FC2B6">10-day rollout · [inference ms]</span>
+      </div>
+    </header>
+
+    <div style="flex:1;min-height:0;display:flex;justify-content:space-between;gap:24px;padding:4px 24px 12px">
+      <div style="display:flex;flex-direction:column;justify-content:space-between;gap:16px;max-width:min(560px, 48vw);min-width:0">
+        <div aria-live="polite" style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:flex-start;gap:14px">
+            <span style="font-family:Fredoka, sans-serif;font-weight:500;font-size:clamp(72px, 9vw, 150px);line-height:0.9;letter-spacing:-0.02em;color:rgba(231,242,238,0.5);text-shadow:0 2px 24px rgba(0,0,0,0.5)">{{ghost.big}}</span>
+            <div style="display:flex;flex-direction:column;gap:4px;padding-top:10px">
+              <span style="font-family:Fredoka, sans-serif;font-weight:600;font-size:18px;letter-spacing:0.14em;color:#F2FBF7">{{ghost.label}}</span>
+              <span style="font-family:Fredoka, sans-serif;font-weight:400;font-size:clamp(22px, 2.4vw, 36px);color:rgba(231,242,238,0.55)">{{ghost.unit}}</span>
+            </div>
+          </div>
+          <span style="font-family:'JetBrains Mono', monospace;font-size:12px;letter-spacing:0.08em;color:#BFD9D0">{{ghost.where}}</span>
+          <div style="display:flex;flex-wrap:wrap;gap:10px 24px;margin-top:10px">
+            <sc-for list="{{ghost.row}}" as="g" hint-placeholder-count="6">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:10px;letter-spacing:0.18em;color:#9FC2B6">{{g.k}}</span>
+                <span style="font-family:Fredoka, sans-serif;font-weight:500;font-size:clamp(22px, 2.2vw, 32px);line-height:1;color:rgba(231,242,238,0.68)">{{g.v}}<span style="font-size:0.48em;font-weight:400;margin-left:4px;color:rgba(231,242,238,0.55)">{{g.u}}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <section aria-label="Layers and view" style="pointer-events:auto;width:300px;max-width:100%;padding:12px;border-radius:16px;background:rgba(5,16,20,0.62);border:1px solid rgba(127,216,190,0.16);backdrop-filter:blur(14px);display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:10px;letter-spacing:0.2em;color:#9FC2B6">MAP LAYERS · TURN ON ANY COMBINATION</span>
+          <div role="group" aria-label="Map layers" style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:6px">
+            <sc-for list="{{tiles}}" as="t" hint-placeholder-count="9">
+              <button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:10px;border:2px solid {{t.border}};background:rgba(255,255,255,0.03);color:#E7F2EE;cursor:pointer;text-align:left">
+                <span aria-hidden="true" style="display:block;height:38px;border-radius:7px;background:{{t.thumb}};opacity:{{t.op}}"></span>
+                <span style="display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:11px;padding:0 2px"><span>{{t.name}}</span><span style="color:#7FD8BE;font-size:11px">{{t.tick}}</span></span>
+              </button>
+            </sc-for>
+          </div>
+          <span style="font-size:11px;line-height:1.45;color:#9FC2B6">Big readout follows: <span style="color:#E7F2EE">{{focusName}}</span> · the last weather layer you turned on.</span>
+          <sc-if value="{{inBranch}}" hint-placeholder-val="{{ false }}">
+            <span style="font-size:10px;letter-spacing:0.2em;color:#E9D78A;margin-top:4px">EARTH-B SHOWS</span>
+            <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:4px">
+              <sc-for list="{{views}}" as="vw" hint-placeholder-count="2">
+                <button type="button" onClick="{{vw.pick}}" aria-pressed="{{vw.pressed}}" style="min-height:36px;border-radius:10px;border:1px solid {{vw.border}};background:{{vw.bg}};color:#E7F2EE;font-size:12px;cursor:pointer">{{vw.name}}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <span style="font-size:10px;letter-spacing:0.2em;color:#9FC2B6;margin-top:4px">TIME OVER INDIA (IST)</span>
+          <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:4px">
+            <sc-for list="{{suns}}" as="m" hint-placeholder-count="4">
+              <button type="button" onClick="{{m.pick}}" aria-pressed="{{m.pressed}}" style="min-height:36px;border-radius:10px;border:1px solid {{m.border}};background:{{m.bg}};color:#E7F2EE;font-size:12px;cursor:pointer">{{m.name}}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:2px">
+            <label style="display:flex;align-items:center;gap:8px;min-height:32px;font-size:12px;color:#BFD9D0;cursor:pointer"><input type="checkbox" checked="{{showBoxes}}" onChange="{{toggleBoxes}}" style="width:16px;height:16px;accent-color:#7FD8BE">Test-shock pins</label>
+            <label style="display:flex;align-items:center;gap:8px;min-height:32px;font-size:12px;color:#BFD9D0;cursor:pointer"><input type="checkbox" checked="{{showCells}}" onChange="{{toggleCells}}" style="width:16px;height:16px;accent-color:#7FD8BE">Model cells (1°)</label>
+          </div>
+        </section>
+      </div>
+
+      <div style="display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;gap:16px">
+        <div role="group" aria-label="Globe view" style="pointer-events:auto;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:14px;background:rgba(5,16,20,0.62);border:1px solid rgba(127,216,190,0.16);backdrop-filter:blur(14px)">
+          <button type="button" onClick="{{zoomIn}}" aria-label="Zoom in" style="width:44px;height:44px;border-radius:10px;border:none;background:rgba(127,216,190,0.1);color:#E7F2EE;font-size:22px;cursor:pointer">+</button>
+          <button type="button" onClick="{{zoomOut}}" aria-label="Zoom out" style="width:44px;height:44px;border-radius:10px;border:none;background:rgba(127,216,190,0.1);color:#E7F2EE;font-size:22px;cursor:pointer">−</button>
+          <button type="button" onClick="{{northUp}}" aria-label="Turn north up" style="width:44px;height:44px;border-radius:10px;border:none;background:rgba(127,216,190,0.1);color:#E7F2EE;font-size:12px;font-weight:600;cursor:pointer">N↑</button>
+          <button type="button" onClick="{{resetView}}" aria-label="Reset view to India" style="width:44px;height:44px;border-radius:10px;border:none;background:rgba(127,216,190,0.1);cursor:pointer;display:flex;align-items:center;justify-content:center">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9a6 6 0 1 0 2-4.5" stroke="#E7F2EE" stroke-width="1.5" stroke-linecap="round"></path><path d="M3 2.5V5h2.5" stroke="#E7F2EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="pointer-events:auto;align-self:center;margin-bottom:18px;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:999px;background:rgba(5,16,20,0.62);border:1px solid rgba(127,216,190,0.16);backdrop-filter:blur(14px);max-width:calc(100% - 48px);flex-wrap:wrap;justify-content:center">
+      <button type="button" onClick="{{togglePlay}}" aria-label="{{playLabel}}" style="width:44px;height:44px;border-radius:50%;border:1px solid rgba(127,216,190,0.6);background:rgba(127,216,190,0.14);cursor:pointer;display:flex;align-items:center;justify-content:center">
+        <sc-if value="{{playing}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M4 2.5v9M10 2.5v9" stroke="#E7F2EE" stroke-width="1.8" stroke-linecap="round"></path></svg></sc-if><sc-if value="{{notPlaying}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 2v10l8.5-5z" stroke="#E7F2EE" stroke-width="1.4" stroke-linejoin="round"></path></svg></sc-if>
+      </button>
+      <div role="group" aria-label="Forecast day" style="display:flex;gap:2px;flex-wrap:wrap">
+        <sc-for list="{{days}}" as="d" hint-placeholder-count="11">
+          <button type="button" onClick="{{d.pick}}" aria-pressed="{{d.pressed}}" style="min-width:44px;min-height:40px;border-radius:999px;border:none;background:{{d.bg}};color:{{d.fg}};font-family:'JetBrains Mono', monospace;font-size:12px;cursor:pointer">{{d.label}}</button>
+        </sc-for>
+      </div>
+      <span style="font-size:12px;color:#9FC2B6;padding:0 8px">{{dayCaption}}</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+const U = {
+  data:'/_blob/e5ef0f2f106fb1eca4c94abcb690b524', day:'/_blob/5289e14bb6a43e84c897809226e820a3', elev:'/_blob/926ec6efc43f47d4f7e84d4866d9bc6f',
+  borders:'/_blob/f30e0df188c4934eaef85bc8c15bd26f', coast:'/_blob/acc7570c8cc7fdf5b28acbfbd468206d', frames:'/_blob/084af9509a537d4f8af7196d24906e3e', sun:'/_blob/969b3500f8f403c832321c22972d55a7', moon:'/_blob/243ad065ec74a8666db93ee767ea19ed', milky:'/_blob/e098ba2e656a64b1e08d5deabf2ddfd5', ring:'/_blob/37c6f71307f2d76f14ccd4b4270f2d45', lights:'/_blob/44036f39bdce8f5c7c127606109d6f79', domDay:'/_blob/5e55b8ceb7a0b484801df4aab5b2f16e', domElev:'/_blob/590ace686f322140a62635e99681bb5b'
+};
+const DOM = {lat0:6, lat1:38, lon0:65, lon1:101};
+const DISP = 0.022;   // terrain exaggeration (fraction of Earth radius at 8 km)
+const DIV = ['#4A7896','#9DBBCB','#EFEAE0','#D7A48C','#A8574A'];
+const DRANGE = {tp:15,t2m:3,ws:3,msl:4,tcwv:10};
+const SCENS = [
+ {id:'heat',name:'Heatwave',key:'t2m',thr:0.5,min:1,max:8,step:0.5,def:4,fmt:v=>'+'+v+' °C',text:'Hot, dry air: temperature up, moisture down. Watch heat spread with the winds.',metric:'Δ temperature °C'},
+ {id:'warmsea',name:'Warm sea',key:'t2m',thr:0.5,min:1,max:6,step:0.5,def:3,fmt:v=>'+'+v+' °C',text:'A marine heatwave: warmer air and more evaporation over water, which can feed rain downwind.',metric:'Δ temperature °C'},
+ {id:'cyclone',name:'Cyclone',key:'tp',thr:3,min:4,max:30,step:2,def:14,fmt:v=>'−'+v+' hPa',text:'Seeds a low-pressure system with spinning winds and extra moisture. Best dropped over the sea.',metric:'Δ rain mm/day'},
+ {id:'stall',name:'Monsoon stall',key:'ws',thr:0.4,min:10,max:80,step:5,def:40,fmt:v=>'−'+v+' % wind',text:'Weakens the winds that carry the monsoon inland.',metric:'Δ wind m/s'},
+ {id:'burst',name:'Rain burst',key:'tp',thr:3,min:10,max:80,step:5,def:40,fmt:v=>'+'+v+' % moisture',text:'A surge of moist air that can turn into heavy rain.',metric:'Δ rain mm/day'},
+ {id:'dry',name:'Dry spell',key:'tp',thr:2,min:10,max:60,step:5,def:30,fmt:v=>'−'+v+' % moisture',text:'Dry air moves in: less moisture, less rain, more crop stress.',metric:'Δ rain mm/day'},
+ {id:'custom',name:'Custom',key:'t2m',thr:0.5,min:-5,max:5,step:0.5,def:2.5,fmt:v=>(v>0?'+':'')+v,text:'Change one variable directly. This is what judges may do live.',metric:'Δ'}];
+const QUICK = [{name:'Judge test · warm Bay of Bengal',scen:'warmsea',judge:'warm',center:[14,88],rad:6,amt:3},{name:'Judge test · Arabian Sea stall',scen:'stall',judge:'stall',center:[14,70],rad:5,amt:40}];
+const CVARS = [{id:'t2m',name:'Temp',key:'t2m',thr:0.5,unit:'°C',min:-5,max:5,step:0.5,def:2.5,fmt:v=>(v>0?'+':'')+v+' °C'},{id:'tcwv',name:'Moisture',key:'tcwv',thr:2,unit:'kg/m²',min:-40,max:40,step:5,def:20,fmt:v=>(v>0?'+':'')+v+' %'},{id:'wind',name:'Wind',key:'ws',thr:0.4,unit:'m/s',min:-60,max:60,step:5,def:-40,fmt:v=>(v>0?'+':'')+v+' % strength'},{id:'msl',name:'Pressure',key:'msl',thr:1,unit:'hPa',min:-8,max:8,step:1,def:-4,fmt:v=>(v>0?'+':'')+v+' hPa'}];
+const TEMPP = ['#3B6FB6','#6FA8D6','#BFE3C8','#F1E29A','#F2B26B','#E07A4F','#B9473A'];
+const RAINP = ['#BFE6F2','#7CC3E6','#3E8FD6','#3557C2','#5B3FB3','#9B4FC4'];
+const TILES = [
+ {id:'terrain',name:'Terrain',thumb:'linear-gradient(135deg,#2F5A3B 0%,#6F8B55 45%,#BDB9A4 75%,#EEF1F2 100%)'},
+ {id:'elev',name:'Elevation',thumb:'repeating-linear-gradient(160deg,#2E6B4F 0 6px,#9DAA62 6px 7px,#C9B26B 7px 13px,#B07A4F 13px 14px)'},
+ {id:'borders',name:'Borders',thumb:'linear-gradient(115deg,#0B2C48 0 46%,#6BE6FF 46% 50%,#2F5A3B 50% 72%,#FFD66B 72% 75%,#3A6A45 75%)'},
+ {id:'heat',name:'Heat',w:'t2m',thumb:'linear-gradient(90deg,#3B6FB6,#BFE3C8,#F1E29A,#E07A4F,#B9473A)'},
+ {id:'rain',name:'Rain',w:'tp',thumb:'radial-gradient(circle at 30% 40%,#5B3FB3 0 12%,#3E8FD6 22%,transparent 42%),radial-gradient(circle at 72% 65%,#3557C2 0 10%,#7CC3E6 26%,transparent 44%),#1A3346'},
+ {id:'wind',name:'Wind',w:'ws',thumb:'repeating-linear-gradient(170deg,#0E2230 0 5px,#CFEFE6 5px 6px,#0E2230 6px 11px)'},
+ {id:'pressure',name:'Pressure',w:'msl',thumb:'repeating-radial-gradient(circle at 40% 55%,#12303F 0 6px,#E7F2EE 6px 7px)'},
+ {id:'moisture',name:'Moisture',w:'tcwv',thumb:'radial-gradient(circle at 50% 50%,#E6FBFF 0 18%,#8FD6E6 38%,#10303F 70%)'},
+ {id:'lights',name:'City lights',thumb:'radial-gradient(circle at 25% 40%,#FFD27A 0 4%,transparent 9%),radial-gradient(circle at 60% 30%,#FFC25A 0 3%,transparent 8%),radial-gradient(circle at 70% 70%,#FFD27A 0 5%,transparent 11%),radial-gradient(circle at 40% 75%,#FFB347 0 3%,transparent 8%),#05090F'}];
+const HEAT = ['#F3E6B8','#EBC67E','#DDA066','#C97B57','#A8574A','#7E3F3B'];
+const MAPS = [{id:'heat',name:'Heat'},{id:'terrain',name:'Terrain'},{id:'wind',name:'Wind'},{id:'elev',name:'Elevation'}];
+const LAYERS = [
+  {id:'terrain', name:'Terrain', unit:'m', label:'ELEVATION'},
+  {id:'tp', name:'Rain', unit:'mm/day', label:'RAINFALL', key:'tp', lo:0, hi:60, dec:0, stops:RAINP},
+  {id:'t2m', name:'Temp', unit:'°C', label:'AIR TEMPERATURE', key:'t2m', lo:-5, hi:42, dec:1, stops:TEMPP},
+  {id:'ws', name:'Wind', unit:'m/s', label:'WIND SPEED', key:'ws', lo:0, hi:10, dec:1, stops:HEAT},
+  {id:'msl', name:'Pressure', unit:'hPa', label:'SEA-LEVEL PRESSURE', key:'msl', lo:995, hi:1015, dec:0, stops:HEAT},
+  {id:'tcwv', name:'Moisture', unit:'kg/m²', label:'WATER VAPOUR', key:'tcwv', lo:5, hi:70, dec:0, stops:HEAT},
+];
+const TIMES = [{id:'live',name:'Live'},{id:'noon',name:'Noon',h:12,m:0},{id:'dusk',name:'Dusk',h:18,m:30},{id:'night',name:'Night',h:0,m:30}];
+// ---- ephemeris: JPL Keplerian elements (Standish, valid 1800-2050) + Schlyter lunar theory; checked against Astropy (<0.1 deg planets, <0.5 deg Moon)
+const EL = {
+ Mercury:[[0.38709927,0.20563593,7.00497902,252.25032350,77.45779628,48.33076593],[0.00000037,0.00001906,-0.00594749,149472.67411175,0.16047689,-0.12534081]],
+ Venus:[[0.72333566,0.00677672,3.39467605,181.97909950,131.60246718,76.67984255],[0.00000390,-0.00004107,-0.00078890,58517.81538729,0.00268329,-0.27769418]],
+ EM:[[1.00000261,0.01671123,-0.00001531,100.46457166,102.93768193,0.0],[0.00000562,-0.00004392,-0.01294668,35999.37244981,0.32327364,0.0]],
+ Mars:[[1.52371034,0.09339410,1.84969142,-4.55343205,-23.94362959,49.55953891],[0.00001847,0.00007882,-0.00813131,19140.30268499,0.44441088,-0.29257343]],
+ Jupiter:[[5.20288700,0.04838624,1.30439695,34.39644051,14.72847983,100.47390909],[-0.00011607,-0.00013253,-0.00183714,3034.74612775,0.21252668,0.20469106]],
+ Saturn:[[9.53667594,0.05386179,2.48599187,49.95424423,92.59887831,113.66242448],[-0.00125060,-0.00050991,0.00193609,1222.49362201,-0.41897216,-0.28867794]],
+ Uranus:[[19.18916464,0.04725744,0.77263783,313.23810451,170.95427630,74.01692503],[-0.00196176,-0.00004397,-0.00242939,428.48202785,0.40805281,0.04240589]],
+ Neptune:[[30.06992276,0.00859048,1.77004347,-55.12002969,44.96476227,131.78422574],[0.00026291,0.00005105,0.00035372,218.45945325,-0.32241464,-0.00508664]]};
+const PLANETS = [{n:'Mercury',r:1.1,t:'/_blob/403504f6d6991d837c2475284cff7994'},{n:'Venus',r:1.7,t:'/_blob/60c6fe2218f71871b98b8f110caa3fe0'},{n:'Mars',r:1.4,t:'/_blob/2cf37ae49f599d124ee00dc0b03a5eda'},{n:'Jupiter',r:3.4,t:'/_blob/4de1ac6527df86e0392d3eb5c8706655'},{n:'Saturn',r:2.9,t:'/_blob/068ac227e80580b82984c8ac1878a42b',ring:true},{n:'Uranus',r:2.0,t:'/_blob/3b4c6af2f0f43ec4bf75a42aa213c921'},{n:'Neptune',r:2.0,t:'/_blob/192ce972698e47862368423112217e97'}];
+const sd=x=>Math.sin(x*RAD0), cd=x=>Math.cos(x*RAD0); const RAD0=Math.PI/180;
+function jd(date){ return date.getTime()/86400000+2440587.5; }
+function helio(nm,T,Mfix){ const [e0,r]=EL[nm]; const [a,e,I,L,w,O]=e0.map((x,k)=>x+r[k]*T); const M=Mfix!==undefined?Mfix:((L-w+180)%360+360)%360-180, om=w-O, ed=e/RAD0;
+  let E=M+ed*sd(M); for(let k=0;k<8;k++) E+=(M-(E-ed*sd(E)))/(1-e*cd(E));
+  const xp=a*(cd(E)-e), yp=a*Math.sqrt(1-e*e)*sd(E);
+  return [(cd(om)*cd(O)-sd(om)*sd(O)*cd(I))*xp+(-sd(om)*cd(O)-cd(om)*sd(O)*cd(I))*yp,(cd(om)*sd(O)+sd(om)*cd(O)*cd(I))*xp+(-sd(om)*sd(O)+cd(om)*cd(O)*cd(I))*yp,(sd(om)*sd(I))*xp+(cd(om)*sd(I))*yp]; }
+function toEq(v){ const ob=23.43928; return [v[0],v[1]*cd(ob)-v[2]*sd(ob),v[1]*sd(ob)+v[2]*cd(ob)]; }
+function moonEcl(d){ const N=125.1228-0.0529538083*d,i=5.1454,w=318.0634+0.1643573223*d,e=0.0549,M=((115.3654+13.0649929509*d)%360+360)%360, ed=e/RAD0;
+  let E=M+ed*sd(M)*(1+e*cd(M)); for(let k=0;k<5;k++) E-=(E-ed*sd(E)-M)/(1-e*cd(E));
+  const xv=cd(E)-e, yv=Math.sqrt(1-e*e)*sd(E), v=Math.atan2(yv,xv)/RAD0, r=Math.hypot(xv,yv);
+  const x=r*(cd(N)*cd(v+w)-sd(N)*sd(v+w)*cd(i)), y=r*(sd(N)*cd(v+w)+cd(N)*sd(v+w)*cd(i)), z=r*sd(v+w)*sd(i);
+  let lon=Math.atan2(y,x)/RAD0, lat=Math.atan2(z,Math.hypot(x,y))/RAD0;
+  const Ms=356.0470+0.9856002585*d, Ls=Ms+282.9404+4.70935e-5*d, Lm=N+w+M, D=Lm-Ls, F=Lm-N, Mm=M;
+  lon+=-1.274*sd(Mm-2*D)+0.658*sd(2*D)-0.186*sd(Ms)-0.059*sd(2*Mm-2*D)-0.057*sd(Mm-2*D+Ms)+0.053*sd(Mm+2*D)+0.046*sd(2*D-Ms)+0.041*sd(Mm-Ms)-0.035*sd(D)-0.031*sd(Mm+Ms);
+  lat+=-0.173*sd(F-2*D)-0.055*sd(Mm-F-2*D)-0.046*sd(Mm+F-2*D)+0.033*sd(F+2*D)+0.017*sd(2*Mm+F);
+  return [cd(lat)*cd(lon),cd(lat)*sd(lon),sd(lat)]; }
+function sky(date){ const J=jd(date), T=(J-2451545.0)/36525, em=helio('EM',T), out={};
+  const unit=v=>{const n=Math.hypot(...v);return v.map(x=>x/n);};
+  out.Sun=toEq(em.map(x=>-x)); out.Moon=unit(toEq(moonEcl(J-2451543.5))); out.T=T; out.em=em;
+  PLANETS.forEach(p=>{const h=helio(p.n,T); out[p.n]=toEq(h.map((x,k)=>x-em[k]));});
+  out.gmst=((280.46061837+360.98564736629*(J-2451545.0))%360+360)%360; return out; }
+function hex(h){return [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));}
+function ramp(stops,t){t=Math.max(0,Math.min(1,t));const n=stops.length-1,i=Math.min(n-1,Math.floor(t*n)),f=t*n-i;const a=hex(stops[i]),b=hex(stops[i+1]);return a.map((x,k)=>x+(b[k]-x)*f);}
+const RAD=Math.PI/180; const AU=1100;
+const LATLON = `
+  vec3 P(vec2 t, float h, float disp){ float lon=t.x*6.2831853-3.1415926; float lat=(t.y-0.5)*3.1415926;
+    return vec3(cos(lat)*cos(lon), sin(lat), -cos(lat)*sin(lon))*(1.0+h*disp); }`;
+const GLOBE_VS = `uniform sampler2D elevTex; uniform float disp; varying vec2 vUv; varying vec3 vN; varying vec3 vS;` + LATLON + `
+  void main(){ vUv=uv; float du=1.0/4096.0, dv=1.0/2048.0;
+    float h=texture2D(elevTex,uv).r, hu=texture2D(elevTex,uv+vec2(du,0.0)).r, hv=texture2D(elevTex,uv+vec2(0.0,dv)).r;
+    vec3 p0=P(uv,h,disp), pu=P(uv+vec2(du,0.0),hu,disp), pv=P(uv+vec2(0.0,dv),hv,disp);
+    vec3 n=normalize(cross(pu-p0,pv-p0)); if(dot(n,p0)<0.0) n=-n; if(abs(uv.y-0.5)>0.49) n=normalize(p0);
+    vN=normalize(mat3(modelMatrix)*n); vS=normalize(mat3(modelMatrix)*normalize(p0));
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(p0,1.0); }`;
+const GLOBE_FS = `uniform sampler2D dayTex, lightsTex, borderTex, coastTex; uniform vec3 sunDir; uniform float lightsOn, bordersOn; varying vec2 vUv; varying vec3 vN; varying vec3 vS;
+  void main(){
+    vec3 day=texture2D(dayTex,vUv).rgb;
+    float lam=max(dot(vN,sunDir),0.0), dayAmt=smoothstep(-0.10,0.22,dot(vS,sunDir));
+    vec3 lit=day*(0.08+1.15*lam);
+    float moonL=max(dot(vN,normalize(vec3(-0.45,0.65,0.6))),0.0);
+    vec3 moon=day*vec3(0.20,0.25,0.30)*(0.35+0.9*moonL);
+    vec3 col=mix(moon,lit,dayAmt);
+    vec2 px=vec2(1.0/4096.0,1.0/2048.0);
+    float L=texture2D(lightsTex,vUv).r;
+    float halo=(texture2D(lightsTex,vUv+px*vec2(2.5,0.0)).r+texture2D(lightsTex,vUv-px*vec2(2.5,0.0)).r+texture2D(lightsTex,vUv+px*vec2(0.0,2.5)).r+texture2D(lightsTex,vUv-px*vec2(0.0,2.5)).r)*0.25;
+    col+=(vec3(1.0,0.72,0.34)*pow(L,1.0)*mix(1.9,2.6,dayAmt)+vec3(1.0,0.55,0.2)*halo*mix(0.55,0.9,dayAmt))*mix(1.0,0.85,dayAmt)*lightsOn;
+    float b=texture2D(borderTex,vUv).a*bordersOn;
+    col=mix(col,vec3(0.90,0.99,0.95),b*mix(0.45,0.85,max(dayAmt,0.4)));
+    float cst=texture2D(coastTex,vUv).r*bordersOn;                 // India's coastline: soft bright glow
+    col=mix(col,vec3(0.92,1.0,0.97),cst*0.9);
+    gl_FragColor=vec4(col,1.0); }`;
+const SHELL_VS = `uniform sampler2D domElev; uniform float disp; uniform float lift; varying vec2 vUv; varying vec3 vS;` + `
+  void main(){ vUv=uv; float h=texture2D(domElev,uv).r; vec3 p=normalize(position)*(1.0+h*disp+lift);
+    vS=normalize(mat3(modelMatrix)*normalize(position)); gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`;
+const WX_FS = `uniform sampler2D wxTex; varying vec2 vUv; void main(){ vec4 c=texture2D(wxTex,vUv); gl_FragColor=c; }`;
+const LIFT_FS = `uniform sampler2D maskTex; uniform float fade; varying vec2 vUv; varying vec3 vS;
+  void main(){ vec4 m=texture2D(maskTex,vUv); if(m.a<0.005) discard; gl_FragColor=vec4(m.rgb*m.a*fade, 1.0); }`;
+const SHADOW_FS = `uniform sampler2D maskTex; varying vec2 vUv; void main(){ float a=texture2D(maskTex,vUv).a; gl_FragColor=vec4(0.0,0.0,0.0,a*0.6); }`;
+const SUN_VS = `varying vec2 vUv; varying vec3 vN; varying vec3 vP; void main(){ vUv=uv; vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vP=mv.xyz; gl_Position=projectionMatrix*mv; }`;
+const SUN_FS = `uniform sampler2D sunTex; uniform float time; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
+  void main(){ float mu=max(dot(normalize(vN),normalize(-vP)),0.0);
+    vec3 t=texture2D(sunTex,vUv+vec2(time*0.0015,0.0)).rgb, t2=texture2D(sunTex,vUv*1.7-vec2(time*0.001,time*0.0007)).rgb;
+    vec3 base=mix(t,t2,0.35); float gran=0.92+0.08*sin(vUv.x*900.0+time*1.3)*sin(vUv.y*700.0-time*0.9);
+    vec3 col=base*gran*vec3(1.75,1.32,0.82)*(0.35+0.85*pow(mu,0.5)) + vec3(1.0,0.45,0.12)*pow(1.0-mu,3.0)*0.6;
+    gl_FragColor=vec4(col,1.0); }`;
+const ATM_VS = `varying vec3 vN; varying vec3 vP; void main(){ vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vP=mv.xyz; gl_Position=projectionMatrix*mv; }`;
+const HALO_FS = `varying vec3 vN; varying vec3 vP; void main(){ float f=pow(clamp(0.72-dot(normalize(vN),normalize(-vP)),0.0,1.0),2.2); gl_FragColor=vec4(vec3(0.35,0.7,0.95)*f*1.6,f); }`;
+const AIRGLOW_FS = `varying vec3 vN; varying vec3 vP; void main(){ float r=1.0-abs(dot(normalize(vN),normalize(-vP))); float f=smoothstep(0.90,0.985,r)*(1.0-smoothstep(0.985,1.0,r)); gl_FragColor=vec4(vec3(0.42,1.0,0.55)*f*0.35,f*0.3); }`;
+
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.state={layer:'tp',time:'live',day:0,showBoxes:true,showCells:false,hov:null,ready:false,clock:'',uni:'prime',hasBranch:false,branchName:'',view:'diff',panel:null,scen:'heat',judge:null,cvar:'t2m',camt:4,crad:3,center:null,placing:false,playing:false,on:{terrain:true,elev:false,borders:true,lights:true,heat:true,rain:false,wind:false,pressure:false,moisture:false},focus:'heat',ocScen:null};
+    this.cache={};
+    this.dist=2.3; this.D=null; this.curRegion=-1; this.t0=Date.now(); this.simStart=Date.now();
+    this.setCanvas=(el)=>{ if(el&&el!==this.cv){ this.cv=el; this.waitThree(); } };
+    this.zoomIn=()=>{this.dist=Math.max(1.12,this.dist*0.85);}; this.zoomOut=()=>{this.dist=Math.min(6,this.dist*1.18);};
+    this.resetView=()=>{this.aim(20,80); this.dist=2.3;}; this.northUp=()=>this.fixNorth();
+  }
+  waitThree(){ if(window.THREE) this.init(); else setTimeout(()=>this.waitThree(),60); }
+  componentWillUnmount(){ this.dead=true; clearInterval(this.tick); clearInterval(this.player); if(this.ro) this.ro.disconnect(); if(this.renderer) this.renderer.dispose(); }
+  componentDidUpdate(){ this.sync(); }
+  sync(){ const s=this.state, L=this._last||{};
+    const paintKey=[s.showCells,s.day,s.uni,s.view,s.on,this.branchId,!!this.D,!!this.P,!!this.mask];
+    if(this.D&&this.P&&this.mask&&paintKey.some((v,i)=>v!==(L.paint||[])[i])) this.paintWx();
+    if(this.uni&&s.on!==L.on){ const o=s.on, d=o.terrain?DISP:0; this.uni.disp.value=d; this.uni.lightsOn.value=o.lights?1:0; this.uni.bordersOn.value=o.borders?1:0; (this.shellDisp||[]).forEach(u=>u.value=d); }
+    const mk=[s.center,s.crad,s.panel,s.uni,s.placing,s.judge]; if(this.marker&&mk.some((v,i)=>v!==(L.mk||[])[i])) this.placeMarker();
+    if(this.globe&&L.time!==undefined&&s.time!==L.time){ this.simStart=this.presetDate(); this.t0=Date.now(); this.updateSky(); this.aim(20,80); }
+    this._last={paint:paintKey,on:s.on,mk,time:s.time}; }
+  // simulated clock: live, or today's IST preset that keeps ticking
+  presetDate(){ const t=TIMES.find(x=>x.id===this.state.time); if(!t||t.id==='live') return Date.now();
+    const ist=new Date(Date.now()+5.5*3600000); return Date.UTC(ist.getUTCFullYear(),ist.getUTCMonth(),ist.getUTCDate(),t.h,t.m)-5.5*3600000; }
+  now(){ return new Date(this.simStart+(Date.now()-this.t0)); }
+  w(v){ const T=window.THREE; return new T.Vector3(v[0],v[2],-v[1]); }   // ECI (x, y, z-north) -> scene (x, y-up, z)
+  init(){
+    const T=window.THREE, cv=this.cv;
+    const r=this.renderer=new T.WebGLRenderer({canvas:cv,antialias:true}); r.setPixelRatio(Math.min(window.devicePixelRatio||1,2)); r.outputColorSpace=T.LinearSRGBColorSpace;
+    const sc=this.scene=new T.Scene(); sc.background=new T.Color(0x02040a);
+    this.cam=new T.PerspectiveCamera(35,1,0.01,80000); this.camQ=new T.Quaternion();
+    const tl=new T.TextureLoader(), tex=(u,rep)=>{const t=tl.load(u); t.colorSpace=T.NoColorSpace; t.anisotropy=8; if(rep){t.wrapS=T.RepeatWrapping;} return t;};
+    this.uni={elevTex:{value:tex(U.elev,1)},dayTex:{value:tex(U.day,1)},lightsTex:{value:tex(U.lights,1)},borderTex:{value:tex(U.borders,1)},disp:{value:DISP},sunDir:{value:new T.Vector3(1,0,0)},lightsOn:{value:1},bordersOn:{value:1},coastTex:{value:tex(U.coast,1)}};
+    this.globe=new T.Group(); sc.add(this.globe);
+    this.globe.add(new T.Mesh(new T.SphereGeometry(1,640,320),new T.ShaderMaterial({uniforms:this.uni,vertexShader:GLOBE_VS,fragmentShader:GLOBE_FS})));
+    sc.add(new T.Mesh(new T.SphereGeometry(1.03,128,64),new T.ShaderMaterial({vertexShader:ATM_VS,fragmentShader:AIRGLOW_FS,transparent:true,blending:T.AdditiveBlending,depthWrite:false})));
+    // stars on a far shell
+    const sg=new T.BufferGeometry(), sp=[]; for(let i=0;i<3500;i++){const v=new T.Vector3().randomDirection().multiplyScalar(52000+Math.random()*4000); sp.push(v.x,v.y,v.z);} sg.setAttribute('position',new T.Float32BufferAttribute(sp,3));
+    sc.add(new T.Points(sg,new T.PointsMaterial({color:0xcfe6ff,size:1.6,sizeAttenuation:false,transparent:true,opacity:0.85})));
+    // the Sun: animated photosphere + layered corona (no hard 'bulb' halo)
+    this.sunU={sunTex:{value:tl.load(U.sun)},time:{value:0}};
+    this.sun=new T.Group();
+    this.sun.add(new T.Mesh(new T.SphereGeometry(26,96,48),new T.ShaderMaterial({uniforms:this.sunU,vertexShader:SUN_VS,fragmentShader:SUN_FS})));
+    const corona=(size,stops)=>{ const c=document.createElement('canvas'); c.width=c.height=512; const g=c.getContext('2d'), gr=g.createRadialGradient(256,256,0,256,256,256);
+      stops.forEach(([o,col])=>gr.addColorStop(o,col)); g.fillStyle=gr; g.fillRect(0,0,512,512);
+      const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),blending:T.AdditiveBlending,depthWrite:false,transparent:true})); sp.scale.set(size,size,1); return sp; };
+    this.sun.add(corona(120,[[0,'rgba(255,236,200,0.55)'],[0.22,'rgba(255,214,150,0.35)'],[0.45,'rgba(255,170,90,0.10)'],[1,'rgba(255,140,60,0)']]));
+    this.sun.add(corona(380,[[0,'rgba(255,220,170,0.16)'],[0.25,'rgba(255,190,120,0.06)'],[1,'rgba(255,160,80,0)']]));
+    sc.add(this.sun);
+    // faint Milky Way backdrop
+    const mw=tl.load(U.milky); sc.add(new T.Mesh(new T.SphereGeometry(70000,64,32),new T.MeshBasicMaterial({map:mw,side:T.BackSide,color:0x555a66,depthWrite:false})));
+    this.sunLight=new T.DirectionalLight(0xfff4e6,3.2); sc.add(this.sunLight); sc.add(new T.AmbientLight(0xffffff,0.04));
+    // Moon + planets (directions are real; sizes exaggerated so they can be seen)
+    const label=(txt)=>{const c=document.createElement('canvas'); c.width=256; c.height=64; const x=c.getContext('2d'); x.font='500 30px Fredoka, Inter, sans-serif'; x.fillStyle='rgba(231,242,238,0.9)'; x.textAlign='center'; x.fillText(txt,128,42);
+      const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false})); return sp;};
+    this.bodies={};
+    const addBody=(name,radius,texUrl,dist,ring)=>{ const grp=new T.Group(); const m=new T.Mesh(new T.SphereGeometry(radius,64,32),new T.MeshStandardMaterial({map:tl.load(texUrl),roughness:1,metalness:0})); grp.add(m);
+      if(ring){ const r0=radius*1.24,r1=radius*2.27, rgeo=new T.RingGeometry(r0,r1,128,1), pos=rgeo.attributes.position, uvA=rgeo.attributes.uv;
+        for(let i=0;i<pos.count;i++){ const rr=Math.hypot(pos.getX(i),pos.getY(i)); uvA.setXY(i,(rr-r0)/(r1-r0),0.5); }
+        const rg=new T.Mesh(rgeo,new T.MeshStandardMaterial({map:tl.load(U.ring),side:T.DoubleSide,transparent:true,roughness:1,depthWrite:false})); grp.add(rg); grp.ring=rg; }
+      const lb=label(name); lb.scale.set(radius*0+dist*0.09,dist*0.0225,1); lb.position.set(0,radius+dist*0.02,0); grp.add(lb);
+      sc.add(grp); this.bodies[name]={grp,dist}; };
+    addBody('Moon',2.4,U.moon,140);
+    PLANETS.forEach(pl=>addBody(pl.n,pl.r*2.2,pl.t,700,pl.ring));
+    this.orbits=new T.Group(); sc.add(this.orbits);
+    // India-domain shells: weather, lifted region, its shadow
+    const domGeo=()=>new T.SphereGeometry(1,220,200,(DOM.lon0+180)*RAD,(DOM.lon1-DOM.lon0)*RAD,(90-DOM.lat1)*RAD,(DOM.lat1-DOM.lat0)*RAD);
+    const domElev=tex(U.domElev), domDay=tex(U.domDay);
+    this.wxCanvas=document.createElement('canvas'); this.wxCanvas.width=1440; this.wxCanvas.height=1280; this.wxTex=new T.CanvasTexture(this.wxCanvas); this.wxTex.colorSpace=T.NoColorSpace;
+    this.globe.add(new T.Mesh(domGeo(),new T.ShaderMaterial({uniforms:{domElev:{value:domElev},disp:{value:DISP},lift:{value:0.0035},wxTex:{value:this.wxTex}},vertexShader:SHELL_VS,fragmentShader:WX_FS,transparent:true,depthWrite:false})));
+    this.maskCanvas=document.createElement('canvas'); this.maskCanvas.width=720; this.maskCanvas.height=640; this.maskTex=new T.CanvasTexture(this.maskCanvas);
+    this.shadowCanvas=document.createElement('canvas'); this.shadowCanvas.width=720; this.shadowCanvas.height=640; this.shadowTex=new T.CanvasTexture(this.shadowCanvas);
+    this.hlU={maskTex:{value:this.maskTex},fade:{value:0},domElev:{value:domElev},disp:{value:DISP},lift:{value:0.0045}};
+    this.liftMesh=new T.Mesh(domGeo(),new T.ShaderMaterial({uniforms:this.hlU,vertexShader:SHELL_VS,fragmentShader:LIFT_FS,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));
+    this.liftMesh.visible=false; this.globe.add(this.liftMesh); this.fadeTo=0;
+    // test-shock pins (pulsing), replacing the dashed boxes
+    const pinTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.strokeStyle='rgba(233,215,138,0.95)'; x.lineWidth=5; x.beginPath(); x.arc(64,64,52,0,Math.PI*2); x.stroke(); return new T.CanvasTexture(c); })();
+    const dotTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'); const g=x.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,'rgba(255,240,190,1)'); g.addColorStop(0.35,'rgba(233,215,138,0.9)'); g.addColorStop(1,'rgba(233,215,138,0)'); x.fillStyle=g; x.fillRect(0,0,64,64); return new T.CanvasTexture(c); })();
+    this.marker=new T.Group(); this.globe.add(this.marker); this.marker.visible=false;
+    const mk=(r0,r1,op)=>new T.Mesh(new T.RingGeometry(r0,r1,96),new T.MeshBasicMaterial({color:0xe9d78a,transparent:true,opacity:op,side:T.DoubleSide,depthWrite:false}));
+    this.markerRing=mk(0.93,1.0,0.95); this.markerFill=new T.Mesh(new T.CircleGeometry(1,96),new T.MeshBasicMaterial({color:0xe9d78a,transparent:true,opacity:0.12,side:T.DoubleSide,depthWrite:false}));
+    this.markerPulse=mk(0.97,1.0,0.8); this.markerDot=new T.Mesh(new T.CircleGeometry(0.08,32),new T.MeshBasicMaterial({color:0xfff2c4,side:T.DoubleSide}));
+    [this.markerFill,this.markerRing,this.markerPulse,this.markerDot].forEach(m=>this.marker.add(m));
+    this.flowCanvas=document.createElement('canvas'); this.flowCanvas.width=1080; this.flowCanvas.height=960; this.flowTex=new T.CanvasTexture(this.flowCanvas); this.flowTex.colorSpace=T.NoColorSpace;
+    this.flowMesh=new T.Mesh(domGeo(),new T.ShaderMaterial({uniforms:{domElev:{value:domElev},disp:{value:DISP},lift:{value:0.004},wxTex:{value:this.flowTex}},vertexShader:SHELL_VS,fragmentShader:WX_FS,transparent:true,depthWrite:false}));
+    this.flowMesh.visible=false; this.globe.add(this.flowMesh); this.parts=[];
+    this.pins=new T.Group(); this.globe.add(this.pins); this.pinRings=[];
+    [['WARM-OCEAN TEST',14,88],['MONSOON-STALL TEST',14,70]].forEach(([t,la,lo])=>{ const at=this.vec(la,lo).multiplyScalar(1.012);
+      const dot=new T.Sprite(new T.SpriteMaterial({map:dotTex,transparent:true,depthWrite:false})); dot.scale.set(0.028,0.028,1); dot.position.copy(at); this.pins.add(dot);
+      const ring=new T.Sprite(new T.SpriteMaterial({map:pinTex,transparent:true,depthWrite:false})); ring.position.copy(at); this.pins.add(ring); this.pinRings.push(ring);
+      const c=document.createElement('canvas'); c.width=512; c.height=80; const x=c.getContext('2d'); x.font='600 34px Inter, sans-serif'; x.textAlign='center'; x.shadowColor='rgba(0,0,0,0.9)'; x.shadowBlur=8; x.fillStyle='rgba(245,235,192,0.95)'; x.fillText(t,256,50);
+      const lb=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false})); lb.scale.set(0.16,0.025,1); lb.position.copy(this.vec(la-1.6,lo).multiplyScalar(1.012)); this.pins.add(lb); });
+    // neighbouring-country names, written on the surface (none on India)
+    [['PAKISTAN',29.6,69.4],['AFGHANISTAN',33.9,66.2],['CHINA',33.2,92.0],['NEPAL',28.2,83.9],['BHUTAN',27.45,90.45],['BANGLADESH',23.9,90.2],['MYANMAR',21.3,95.9],['SRI LANKA',7.7,80.75],['IRAN',32.2,54.9],['TAJIKISTAN',38.7,71.0],['THAILAND',15.5,101.0],['OMAN',21.3,57.3],['UAE',23.6,54.3,0.6],['QATAR',25.3,51.2,0.5],['BAHRAIN',26.15,50.55,0.42],['SAUDI ARABIA',23.8,44.7],['YEMEN',15.6,47.3],['KUWAIT',29.35,47.6,0.5],['IRAQ',33.1,43.3],['JORDAN',30.9,36.7,0.55],['SYRIA',35.0,38.4],['LEBANON',34.25,35.85,0.45],['PALESTINE',32.15,35.25,0.45],['ISRAEL',30.6,34.85,0.45]].forEach(([n,la,lo,k])=>{ k=k||1;
+      const c=document.createElement('canvas'); c.width=512; c.height=96; const x=c.getContext('2d'); x.font='500 40px Fredoka, Inter, sans-serif'; x.textAlign='center'; x.textBaseline='middle';
+      x.shadowColor='rgba(0,0,0,0.85)'; x.shadowBlur=10; x.fillStyle='rgba(236,246,242,0.82)'; x.fillText(n.split('').join(String.fromCharCode(8202)),256,48);
+      const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false})); sp.scale.set(0.17*k,0.032*k,1); sp.position.copy(this.vec(la,lo).multiplyScalar(1.03)); this.globe.add(sp); });
+    this.shellDisp=[]; this.globe.traverse(o=>{ if(o.material&&o.material.uniforms&&o.material.uniforms.domElev) this.shellDisp.push(o.material.uniforms.disp); });
+    this.updateSky(); this.aim(20,80);
+    this.tick=setInterval(()=>this.updateSky(),5000);
+    this.ro=new ResizeObserver(()=>this.resize()); this.ro.observe(cv.parentElement); this.resize();
+    this.bindInput();
+    Promise.all([fetch(U.data).then(x=>x.json()),fetch(U.frames).then(x=>x.json())]).then(([d,f])=>{this.prep(d); this.buildMask(); this.P=f.frames.map(fr=>({...fr,ws:fr.u.map((u,i)=>Math.hypot(u,fr.v[i]))})); this.paintWx(); this.setState({ready:true});}).catch(()=>{});
+    const loop=()=>{ if(this.dead) return;
+      this.sync();
+      this.sunU.time.value=performance.now()/1000;
+      this.stepFlow(); if(this.marker.visible){ const q=(performance.now()/1200)%1; this.markerPulse.scale.setScalar(1+0.6*q); this.markerPulse.material.opacity=0.8*(1-q); }
+      const ph=(performance.now()/1400)%1; this.pinRings.forEach(r=>{ const sz=0.03+0.05*ph; r.scale.set(sz,sz,1); r.material.opacity=1-ph; }); this.pins.visible=this.state.showBoxes;
+      this.hlU.fade.value+=(this.fadeTo-this.hlU.fade.value)*0.22; if(this.fadeTo===0&&this.hlU.fade.value<0.01) this.liftMesh.visible=false;
+      this.cam.position.set(0,0,this.dist).applyQuaternion(this.camQ); this.cam.quaternion.copy(this.camQ);
+      r.render(sc,this.cam); requestAnimationFrame(loop); }; loop();
+  }
+  updateSky(){
+    const T=window.THREE, d=this.now(), k=sky(d); this.sky=k; this.skyAt=Date.now()-(Date.now()-this.t0)+(d.getTime()-this.simStart)-(d.getTime()-this.simStart); this.skyAt=Date.now();
+    const sdir=this.w(k.Sun).normalize(); this.uni.sunDir.value.copy(sdir);  this.sunLight.position.copy(sdir);
+    this.globe.rotation.set(0,k.gmst*RAD,0);
+    this.sun.position.copy(this.w(k.Sun).multiplyScalar(AU));
+    Object.entries(this.bodies).forEach(([n,b])=>{ if(n==='Moon') b.grp.position.copy(this.w(k[n]).normalize().multiplyScalar(b.dist));
+      else { const v=this.w(k[n]).multiplyScalar(AU); b.grp.position.copy(v); b.grp.scale.setScalar(v.length()/700); }
+      if(b.grp.ring){ const pole=this.w([cd(83.54)*cd(40.59),cd(83.54)*sd(40.59),sd(83.54)]); b.grp.ring.lookAt(b.grp.position.clone().add(pole)); } });
+    if(!this.orbitT||Math.abs(this.orbitT-k.T)>0.0005){ this.orbitT=k.T; while(this.orbits.children.length){ const c=this.orbits.children.pop(); c.geometry.dispose(); }
+      ['EM',...PLANETS.map(p=>p.n)].forEach(nm=>{ const pts=[]; for(let m=-180;m<=180;m+=1){ const h=helio(nm,k.T,m); pts.push(this.w(toEq(h.map((x,j)=>x-k.em[j]))).multiplyScalar(AU)); }
+        const earth=nm==='EM'; this.orbits.add(new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineBasicMaterial({color:earth?0x7fd8be:0x9fc2b6,transparent:true,opacity:earth?0.55:0.28,depthWrite:false}))); }); }
+    const ist=new Date(d.getTime()+5.5*3600000), mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ist.getUTCMonth()];
+    const clock=ist.getUTCDate()+' '+mo+' '+ist.getUTCFullYear()+' · '+String(ist.getUTCHours()).padStart(2,'0')+':'+String(ist.getUTCMinutes()).padStart(2,'0')+' IST'+(this.state.time==='live'?' · LIVE':'');
+    if(clock!==this.state.clock) this.setState({clock});
+  }
+  resize(){ const el=this.cv.parentElement, w=el.clientWidth, h=el.clientHeight; this.renderer.setSize(w,h,false); this.cam.aspect=w/h; this.cam.updateProjectionMatrix(); }
+  worldOf(lat,lon){ return this.vec(lat,lon).applyAxisAngle(new window.THREE.Vector3(0,1,0),this.globe.rotation.y); }
+  lookFrom(dir,up){ const T=window.THREE, m=new T.Matrix4().lookAt(dir.clone().normalize(),new T.Vector3(0,0,0),up||new T.Vector3(0,1,0)); this.camQ.setFromRotationMatrix(m); }
+  aim(lat,lon){ if(this.sky) this.globe.rotation.y=this.sky.gmst*RAD; this.lookFrom(this.worldOf(lat,lon)); }
+  fixNorth(){ const T=window.THREE; this.lookFrom(new T.Vector3(0,0,1).applyQuaternion(this.camQ)); }
+  vec(lat,lon){ const T=window.THREE; return new T.Vector3(Math.cos(lat*RAD)*Math.cos(lon*RAD),Math.sin(lat*RAD),-Math.cos(lat*RAD)*Math.sin(lon*RAD)); }
+  pick(cx,cy){ const T=window.THREE, rc=this.cv.getBoundingClientRect(); const nd=new T.Vector2((cx-rc.left)/rc.width*2-1,-((cy-rc.top)/rc.height)*2+1);
+    this.cam.updateMatrixWorld(); const ray=new T.Raycaster(); ray.setFromCamera(nd,this.cam);
+    const o=ray.ray.origin, d=ray.ray.direction, b=o.dot(d), c=o.lengthSq()-1, disc=b*b-c; if(disc<0) return null;
+    const p=o.clone().add(d.clone().multiplyScalar(-b-Math.sqrt(disc)));
+    const l=p.clone().applyAxisAngle(new T.Vector3(0,1,0),-this.globe.rotation.y);
+    return {world:p, lat:Math.asin(Math.max(-1,Math.min(1,l.y)))/RAD, lon:Math.atan2(-l.z,l.x)/RAD, px:cx-rc.left, py:cy-rc.top}; }
+  bindInput(){
+    const T=window.THREE, cv=this.cv; let drag=null;
+    cv.addEventListener('contextmenu',e=>e.preventDefault());
+    cv.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY,x0:e.clientX,y0:e.clientY,roll:e.shiftKey||e.button===2}; cv.setPointerCapture(e.pointerId); cv.style.cursor='grabbing'; });
+    cv.addEventListener('pointerup',e=>{ const moved=drag?Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0):99; drag=null; cv.style.cursor='grab';
+      if(this.state.placing&&moved<5){ const h=this.pick(e.clientX,e.clientY); if(h&&h.lat>=DOM.lat0&&h.lat<=DOM.lat1&&h.lon>=DOM.lon0&&h.lon<=DOM.lon1) this.setState({center:[h.lat,h.lon],placing:false,judge:null}); } });
+    cv.addEventListener('pointermove',e=>{
+      if(drag){ const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+        const k=0.0016*Math.min(1.5,Math.max(0.12,this.dist-1.0)); const q=new T.Quaternion();
+        if(drag.roll) q.setFromAxisAngle(new T.Vector3(0,0,1),dx*0.0025);
+        else { const ax=new T.Vector3(dy,dx,0); const len=ax.length(); if(len<1e-6) return; q.setFromAxisAngle(ax.normalize(),-len*k); }
+        this.camQ.multiply(q); return; }
+      this.hover(e.clientX,e.clientY);
+    });
+    cv.addEventListener('pointerleave',()=>{ this.clearLift(); this.setState({hov:null}); });
+    cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=Math.exp(e.deltaY*0.0006), nd=Math.max(1.12,Math.min(6,this.dist*f));
+      if(nd<this.dist){ const h=this.pick(e.clientX,e.clientY); if(h){ const cd0=new T.Vector3(0,0,1).applyQuaternion(this.camQ); const q=new T.Quaternion().setFromUnitVectors(cd0,h.world.clone().normalize()); const qi=new T.Quaternion().slerp(q,Math.min(0.25,(this.dist-nd)/this.dist*0.9)); this.camQ.premultiply(qi);} }
+      this.dist=nd; },{passive:false});
+    cv.addEventListener('dblclick',e=>{ const h=this.pick(e.clientX,e.clientY); if(h){ this.lookFrom(h.world); this.dist=Math.max(1.3,this.dist*0.7);} });
+  }
+  // ---- data ----
+  prep(d){ this.D=d; const wx=d.wx; wx.ws=wx.u.map((u,i)=>Math.hypot(u,wx.v[i]));
+    const g=d.region, reg=new Uint8Array(g.rows*g.cols);
+    g.rle.split('|').forEach((row,r)=>{let c=0;row.split(',').forEach(t=>{const [id,n]=t.split(':').map(Number);reg.fill(id,r*g.cols+c,r*g.cols+c+n);c+=n;});}); this.reg=reg; }
+  buildMask(){ const g=this.D.region, first=g.names.length-36, W=180, H=160, f=4, inI=new Uint8Array(W*H), foreign=new Uint8Array(W*H);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){ let ni=0,nf=0; for(let dy=0;dy<f;dy++)for(let dx=0;dx<f;dx++){ const id=this.reg[(y*f+dy)*g.cols+(x*f+dx)]; if(id>=first) ni++; else if(id>0) nf++; } inI[y*W+x]=ni>=8?1:0; foreign[y*W+x]=nf>=8?1:0; }
+    const D=new Float32Array(W*H).fill(1e9); for(let i=0;i<W*H;i++) if(inI[i]) D[i]=0;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const i=y*W+x; if(x>0) D[i]=Math.min(D[i],D[i-1]+1); if(y>0) D[i]=Math.min(D[i],D[i-W]+1); if(x>0&&y>0) D[i]=Math.min(D[i],D[i-W-1]+1.414); if(x<W-1&&y>0) D[i]=Math.min(D[i],D[i-W+1]+1.414); }
+    for(let y=H-1;y>=0;y--)for(let x=W-1;x>=0;x--){ const i=y*W+x; if(x<W-1) D[i]=Math.min(D[i],D[i+1]+1); if(y<H-1) D[i]=Math.min(D[i],D[i+W]+1); if(x<W-1&&y<H-1) D[i]=Math.min(D[i],D[i+W+1]+1.414); if(x>0&&y<H-1) D[i]=Math.min(D[i],D[i+W-1]+1.414); }
+    const M=new Float32Array(W*H), c=document.createElement('canvas'); c.width=W; c.height=H; const cx=c.getContext('2d'), img=cx.createImageData(W,H);
+    for(let i=0;i<W*H;i++){ const v=inI[i]?1:(foreign[i]?0:Math.max(0,Math.min(1,1-(D[i]*0.2-2.5)/3.5))); M[i]=v; img.data[i*4+3]=Math.round(255*v); }
+    cx.putImageData(img,0,0); this.mask=c; this.maskA=M; }
+  maskAt(la,lo){ const x=Math.floor((lo-DOM.lon0)/36*180), y=Math.floor((DOM.lat1-la)/32*160); if(x<0||y<0||x>=180||y>=160) return 0; return this.maskA[y*180+x]; }
+  regionAt(la,lo){ const g=this.D.region; const r=Math.floor((DOM.lat1-la)/g.res), c=Math.floor((lo-DOM.lon0)/g.res); if(r<0||c<0||r>=g.rows||c>=g.cols) return 0; return this.reg[r*g.cols+c]; }
+  mode(){ const s=this.state; return s.uni==='prime'||!this.delta ? 'prime' : (s.view==='diff'?'diff':'branch'); }
+  arr(key,mode,day){ day=day===undefined?this.state.day:day; mode=mode||this.mode(); const ck=key+'|'+mode+'|'+day+'|'+(this.branchId||0); if(this.cache[ck]) return this.cache[ck];
+    const P=this.P[day], base=P[key]; if(mode==='prime'||!this.delta) return base; const Dl=this.delta[day];
+    const br = key==='ws' ? P.u.map((u,i)=>Math.hypot(u+Dl.u[i],P.v[i]+Dl.v[i])) : base.map((x,i)=>{ const y=x+Dl[key][i]; return key==='tp'?Math.max(0,y):y; });
+    const out = mode==='branch' ? br : br.map((x,i)=>x-base[i]); this.cache[ck]=out; return out; }
+  shockDelta(){ const s=this.state, P0=this.P[0], d={}; ['t2m','tp','u','v','msl','tcwv'].forEach(k=>d[k]=new Float32Array(1152)); const a=s.camt;
+    for(let r=0;r<32;r++)for(let c=0;c<36;c++){ const i=r*36+c, la=37.5-r, lo=65.5+c;
+      if(s.judge==='warm'){ if(la>=8&&la<=20&&lo>=82&&lo<=94){ d.t2m[i]=3; d.tcwv[i]=0.15*P0.tcwv[i]; } continue; }
+      if(s.judge==='stall'){ if(la>=8&&la<=20&&lo>=65&&lo<=75){ d.u[i]=-0.4*P0.u[i]; d.v[i]=-0.4*P0.v[i]; } continue; }
+      if(!s.center) continue; const dy=la-s.center[0], dx=(lo-s.center[1])*Math.cos(la*RAD), sg=Math.max(0.8,s.crad/1.6), rr=Math.hypot(dx,dy), w=Math.exp(-(rr*rr)/(2*sg*sg)); if(w<0.02) continue;
+      if(s.scen==='heat'){ d.t2m[i]=a*w; d.tcwv[i]=-0.04*a*P0.tcwv[i]*w; }
+      if(s.scen==='warmsea'){ d.t2m[i]=a*w; d.tcwv[i]=0.05*a*P0.tcwv[i]*w; }
+      if(s.scen==='cyclone'){ d.msl[i]=-a*w; const sp=a*0.55*w*Math.min(1,rr/sg); if(rr>0.01){ d.u[i]=-dy/rr*sp; d.v[i]=dx/rr*sp; } d.tcwv[i]=0.012*a*P0.tcwv[i]*w; }
+      if(s.scen==='stall'){ d.u[i]=-a/100*P0.u[i]*w; d.v[i]=-a/100*P0.v[i]*w; }
+      if(s.scen==='burst'){ d.tcwv[i]=a/100*P0.tcwv[i]*w; d.tp[i]=a/100*25*w; }
+      if(s.scen==='dry'){ d.tcwv[i]=-a/100*P0.tcwv[i]*w; d.tp[i]=-Math.min(P0.tp[i],a/100*P0.tp[i]*1.5)*w; }
+      if(s.scen==='custom'){ if(s.cvar==='t2m') d.t2m[i]=a*w; if(s.cvar==='msl') d.msl[i]=a*w; if(s.cvar==='tcwv') d.tcwv[i]=a/100*P0.tcwv[i]*w;
+        if(s.cvar==='wind'){ d.u[i]=a/100*P0.u[i]*w; d.v[i]=a/100*P0.v[i]*w; } } }
+    return d; }
+  scenMeta(){ const s=this.state; const sc=SCENS.find(x=>x.id===(s.ocScen||s.scen)); if(sc.id!=='custom') return sc; const cv=CVARS.find(c=>c.id===s.cvar); return {...sc,key:cv.key,thr:cv.thr,metric:'Δ '+cv.name.toLowerCase()+' '+cv.unit}; }
+  outcome(){ if(!this.delta||!this.D) return null; const s=this.state, M=this.scenMeta(), names=this.D.region.names, first=names.length-36;
+    const c0=s.center||[14,80]; const dist=(la,lo)=>{ const a=Math.sin((la-c0[0])*RAD/2)**2+Math.cos(la*RAD)*Math.cos(c0[0]*RAD)*Math.sin((lo-c0[1])*RAD/2)**2; return 12742*Math.asin(Math.sqrt(a)); };
+    const stat=(day)=>{ const A=this.arr(M.key,'diff',day); let spread=0, area=0, peak=0; const per={};
+      for(let r=0;r<32;r++)for(let c=0;c<36;c++){ const i=r*36+c, v=A[i], la=37.5-r, lo=65.5+c; if(Math.abs(v)>Math.abs(peak)) peak=v; if(Math.abs(v)<M.thr) continue;
+        spread=Math.max(spread,dist(la,lo)); area+=12321*Math.cos(la*RAD);
+        const id=this.regionAt(la,lo); if(id>=first){ (per[id]=per[id]||{s:0,n:0}); per[id].s+=v; per[id].n++; } }
+      return {spread,area,peak,per}; };
+    const st=stat(s.day); let best=0,bestDay=0; for(let k=0;k<=10;k++){ const x=stat(k).spread; if(x>best){best=x;bestDay=k;} }
+    const states=Object.entries(st.per).map(([id,o])=>({name:names[id],m:o.s/o.n,n:o.n})).sort((a,b)=>Math.abs(b.m)*Math.sqrt(b.n)-Math.abs(a.m)*Math.sqrt(a.n)).slice(0,6);
+    const mx=Math.max(1e-6,...states.map(x=>Math.abs(x.m)));
+    return {st,states:states.map(x=>({name:x.name,v:(x.m>0?'+':'')+x.m.toFixed(1),w:Math.round(100*Math.abs(x.m)/mx),col:x.m>0?'#D7A48C':'#8FB3C9'})),bestDay,M}; }
+  // PREVIEW ONLY: crude advection + diffusion + coupling so the UI can be judged before the model is wired in
+  propagate(d0){ const out=[d0]; let d=d0;
+    for(let k=1;k<=10;k++){ const F=this.P[k-1], n={};
+      ['t2m','tp','u','v','msl','tcwv'].forEach(key=>{ const a=d[key], b=new Float32Array(1152);
+        for(let r=0;r<32;r++)for(let c=0;c<36;c++){ const i=r*36+c; let cc=c-F.u[i]*0.28, rr=r+F.v[i]*0.28; cc=Math.max(0,Math.min(35,cc)); rr=Math.max(0,Math.min(31,rr));
+          const r0=Math.floor(rr),c0=Math.floor(cc),r1=Math.min(31,r0+1),c1=Math.min(35,c0+1),fr=rr-r0,fc=cc-c0;
+          b[i]=(a[r0*36+c0]*(1-fc)+a[r0*36+c1]*fc)*(1-fr)+(a[r1*36+c0]*(1-fc)+a[r1*36+c1]*fc)*fr; }
+        const s2=new Float32Array(1152); for(let r=0;r<32;r++)for(let c=0;c<36;c++){ const i=r*36+c, g=(rr,cc)=>(rr<0||rr>31||cc<0||cc>35)?b[i]:b[rr*36+cc];
+          s2[i]=(0.6*b[i]+0.1*(g(r-1,c)+g(r+1,c)+g(r,c-1)+g(r,c+1)))*0.9; }
+        n[key]=s2; });
+      for(let i=0;i<1152;i++){ const sp0=Math.hypot(F.u[i],F.v[i]), sp1=Math.hypot(F.u[i]+n.u[i],F.v[i]+n.v[i]);
+        n.tcwv[i]+=0.25*n.t2m[i]; n.msl[i]-=0.3*n.t2m[i]; n.tp[i]+=0.3*n.tcwv[i]+0.8*(sp1-sp0); }
+      out.push(n); d=n; }
+    return out; }
+  grid(key,la,lo){ const a=this.arr(key); let gy=37.5-la, gx=lo-65.5; gy=Math.max(0,Math.min(31,gy)); gx=Math.max(0,Math.min(35,gx));
+    const y0=Math.floor(gy),x0=Math.floor(gx),y1=Math.min(31,y0+1),x1=Math.min(35,x0+1),fy=gy-y0,fx=gx-x0,v=(r,c)=>a[r*36+c];
+    return (v(y0,x0)*(1-fx)+v(y0,x1)*fx)*(1-fy)+(v(y1,x0)*(1-fx)+v(y1,x1)*fx)*fy; }
+  elevAt(la,lo){ const e=this.D.elev; let r=(DOM.lat1-la)/e.res, c=(lo-DOM.lon0)/e.res; r=Math.max(0,Math.min(e.rows-1,r)); c=Math.max(0,Math.min(e.cols-1,c));
+    const r0=Math.floor(r),c0=Math.floor(c),r1=Math.min(e.rows-1,r0+1),c1=Math.min(e.cols-1,c0+1),fr=r-r0,fc=c-c0,z=(i,j)=>e.z[i*e.cols+j];
+    return (z(r0,c0)*(1-fc)+z(r0,c1)*fc)*(1-fr)+(z(r1,c0)*(1-fc)+z(r1,c1)*fc)*fr; }
+  paintElev(ctx,W,H){ const w=720,h=640, s=document.createElement('canvas'); s.width=w; s.height=h; const sc=s.getContext('2d'), img=sc.createImageData(w,h), Z=new Float32Array(w*h);
+    const LANDR=[[0,'#2E6B4F'],[200,'#5E8F57'],[500,'#9DAA62'],[1000,'#C9B26B'],[2000,'#B07A4F'],[3500,'#8C6E5E'],[5000,'#E6E6E2']], SEAR=[[-6000,'#0B2238'],[-3000,'#12385A'],[-1000,'#1C5577'],[-150,'#2F7C93'],[0,'#4B9AA6']];
+    const rp=(st,z)=>{ for(let k=1;k<st.length;k++) if(z<=st[k][0]){ const t=(z-st[k-1][0])/(st[k][0]-st[k-1][0]); const a=hex(st[k-1][1]),b=hex(st[k][1]); return a.map((x,j)=>x+(b[j]-x)*t);} return hex(st[st.length-1][1]); };
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const la=DOM.lat1-(y+0.5)/h*32, lo=DOM.lon0+(x+0.5)/w*36; Z[y*w+x]=this.elevAt(la,lo); }
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const i=y*w+x, z=Z[i], c=z>=0?rp(LANDR,Math.min(z,5000)):rp(SEAR,Math.max(z,-6000));
+      const band=k=>Math.floor((k>=0?k:k)/500); const edge=(x<w-1&&band(Z[i+1])!==band(z))||(y<h-1&&band(Z[i+w])!==band(z));
+      const o=edge?c.map(v=>v*0.55+255*0.45*(z>=0?0.6:0.3)):c; img.data[i*4]=o[0]; img.data[i*4+1]=o[1]; img.data[i*4+2]=o[2]; img.data[i*4+3]=Math.round(255*0.86); }
+    sc.putImageData(img,0,0); ctx.imageSmoothingEnabled=true; ctx.drawImage(s,0,0,W,H); }
+  paintField(ctx,W,H,key,colorAt){ const sw=360,sh=320,c=document.createElement('canvas'); c.width=sw; c.height=sh; const x2=c.getContext('2d'), img=x2.createImageData(sw,sh);
+    for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){ const la=DOM.lat1-(y+0.5)/sh*32, lo=DOM.lon0+(x+0.5)/sw*36, v=this.grid(key,la,lo), o=colorAt(v), i=(y*sw+x)*4;
+      const edge=Math.min(la-DOM.lat0,DOM.lat1-la,lo-DOM.lon0,DOM.lon1-lo), fade=Math.min(1,edge/1.2);
+      img.data[i]=o[0];img.data[i+1]=o[1];img.data[i+2]=o[2];img.data[i+3]=255*o[3]*fade; }
+    x2.putImageData(img,0,0); ctx.imageSmoothingEnabled=true; ctx.drawImage(c,0,0,W,H); }
+  paintWx(){
+    const W=1440,H=1280,ctx=this.wxCanvas.getContext('2d'), on=this.state.on; ctx.clearRect(0,0,W,H);
+    const X=lo=>(lo-DOM.lon0)/36*W, Y=la=>(DOM.lat1-la)/32*H, diff=this.mode()==='diff';
+    const dv=(R,amax)=>v=>{ const c=ramp(DIV,0.5+v/(2*R)); return [c[0],c[1],c[2],Math.min(1,Math.pow(Math.abs(v)/R,0.7))*amax]; };
+    if(on.elev) this.paintElev(ctx,W,H);
+    if(on.heat){ const L=LAYERS.find(l=>l.id==='t2m'); this.paintField(ctx,W,H,'t2m',diff?dv(3,0.7):v=>{ const c=ramp(TEMPP,(v-L.lo)/(L.hi-L.lo)); return [c[0],c[1],c[2],on.elev?0.38:0.5]; }); }
+    if(on.moisture) this.paintField(ctx,W,H,'tcwv',diff?dv(10,0.6):v=>[236,250,255,Math.min(0.55,Math.max(0,(v-38)/45))]);
+    if(on.rain) this.paintField(ctx,W,H,'tp',diff?dv(15,0.75):v=>{ const c=ramp(RAINP,Math.min(1,v/60)); return [c[0],c[1],c[2],Math.min(0.85,Math.max(0,(v-1)/30))]; });
+    if(on.pressure){ const sw=720,sh=640,c=document.createElement('canvas'); c.width=sw; c.height=sh; const x2=c.getContext('2d'), img=x2.createImageData(sw,sh), Pz=new Float32Array(sw*sh), step=diff?0.5:2;
+      for(let y=0;y<sh;y++)for(let x=0;x<sw;x++) Pz[y*sw+x]=this.grid('msl',DOM.lat1-(y+0.5)/sh*32,DOM.lon0+(x+0.5)/sw*36);
+      for(let y=0;y<sh-1;y++)for(let x=0;x<sw-1;x++){ const i=y*sw+x, b0=Math.floor(Pz[i]/step); if(b0!==Math.floor(Pz[i+1]/step)||b0!==Math.floor(Pz[i+sw]/step)){ img.data[i*4]=240;img.data[i*4+1]=246;img.data[i*4+2]=243;img.data[i*4+3]=200; } }
+      x2.putImageData(img,0,0); ctx.drawImage(c,0,0,W,H);
+      const A=this.arr('msl'); let mi=0,ma=0; for(let i=0;i<1152;i++){ if(A[i]<A[mi]) mi=i; if(A[i]>A[ma]) ma=i; }
+      ctx.font='700 40px Fredoka, Inter, sans-serif'; ctx.textAlign='center'; ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=8;
+      [[mi,diff?'−':'L','#9FD3FF'],[ma,diff?'+':'H','#FFD27A']].forEach(([i,t,col])=>{ const r=Math.floor(i/36), cc=i%36; ctx.fillStyle=col; ctx.fillText(t,X(65.5+cc),Y(37.5-r)+14);
+        ctx.font='500 22px Inter, sans-serif'; ctx.fillText((diff&&A[i]>0?'+':'')+A[i].toFixed(diff?1:0),X(65.5+cc),Y(37.5-r)+40); ctx.font='700 40px Fredoka, Inter, sans-serif'; }); ctx.shadowBlur=0; }
+    if(this.state.showCells){ ctx.strokeStyle='rgba(231,242,238,0.3)'; ctx.lineWidth=1.2; ctx.beginPath();
+      for(let lo=DOM.lon0;lo<=DOM.lon1;lo++){ctx.moveTo(X(lo),0);ctx.lineTo(X(lo),H);} for(let la=DOM.lat0;la<=DOM.lat1;la++){ctx.moveTo(0,Y(la));ctx.lineTo(W,Y(la));} ctx.stroke(); }
+    ctx.save(); ctx.globalCompositeOperation='destination-in'; ctx.filter='blur(3px)'; ctx.imageSmoothingEnabled=true; ctx.drawImage(this.mask,0,0,W,H); ctx.restore();
+    this.wxTex.needsUpdate=true;
+  }
+  // ---- hover + lift ----
+  placeMarker(at){ const s=this.state, show=s.placing||((s.panel==='build'||s.panel==='outcome'||s.uni==='b')&&(s.center||s.judge)); const c=at||s.center||(s.judge==='warm'?[14,88]:s.judge==='stall'?[14,70]:null);
+    if(!show||!c){ this.marker.visible=false; return; } const T=window.THREE, n=this.vec(c[0],c[1]);
+    this.marker.position.copy(n.clone().multiplyScalar(1.009)); this.marker.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),n); this.marker.scale.setScalar(Math.max(0.8,s.crad/1.6)*2*RAD); this.marker.visible=true; }
+  stepFlow(){ const on=this.state.on.wind&&this.P; this.flowMesh.visible=!!on; if(!on) return;
+    const W=1080,H=960, ctx=this.flowCanvas.getContext('2d'), md=this.mode(), U=this.arr('u',md==='diff'?'branch':md), V=this.arr('v',md==='diff'?'branch':md);
+    const g=(A,la,lo)=>{ let gy=37.5-la,gx=lo-65.5; gy=Math.max(0,Math.min(31,gy)); gx=Math.max(0,Math.min(35,gx)); const y0=Math.floor(gy),x0=Math.floor(gx),y1=Math.min(31,y0+1),x1=Math.min(35,x0+1),fy=gy-y0,fx=gx-x0;
+      return (A[y0*36+x0]*(1-fx)+A[y0*36+x1]*fx)*(1-fy)+(A[y1*36+x0]*(1-fx)+A[y1*36+x1]*fx)*fy; };
+    if(this.parts.length===0) for(let i=0;i<2600;i++) this.parts.push({la:DOM.lat0+Math.random()*32,lo:DOM.lon0+Math.random()*36,age:Math.random()*120});
+    ctx.globalCompositeOperation='destination-out'; ctx.fillStyle='rgba(0,0,0,0.09)'; ctx.fillRect(0,0,W,H); ctx.globalCompositeOperation='source-over'; ctx.lineWidth=1.6; ctx.lineCap='round';
+    const X=lo=>(lo-DOM.lon0)/36*W, Y=la=>(DOM.lat1-la)/32*H;
+    for(const p of this.parts){ const u=g(U,p.la,p.lo), v=g(V,p.la,p.lo), sp=Math.hypot(u,v), k=0.006;
+      const la2=p.la+v*k, lo2=p.lo+u*k/Math.cos(p.la*RAD); const a=Math.min(1,0.25+sp/8);
+      ctx.strokeStyle='rgba('+Math.round(200+55*Math.min(1,sp/10))+','+Math.round(235-30*Math.min(1,sp/10))+',225,'+a+')';
+      const mA=this.maskAt(p.la,p.lo); if(mA>0.05){ ctx.globalAlpha=mA; ctx.beginPath(); ctx.moveTo(X(p.lo),Y(p.la)); ctx.lineTo(X(lo2),Y(la2)); ctx.stroke(); ctx.globalAlpha=1; } p.la=la2; p.lo=lo2; p.age++;
+      if(p.age>140||la2<DOM.lat0||la2>DOM.lat1||lo2<DOM.lon0||lo2>DOM.lon1){ p.la=DOM.lat0+Math.random()*32; p.lo=DOM.lon0+Math.random()*36; p.age=0; } }
+    this.flowTex.needsUpdate=true; }
+  clearLift(){ if(this.liftMesh){ this.fadeTo=0; this.curRegion=-1; } }
+  lift(id){
+    if(id===this.curRegion) return; this.curRegion=id;
+    if(!id||id<this.D.region.names.length-36){ this.fadeTo=0; return; }      // only Indian states react
+    const W=720,H=640, reg=this.reg, edge=new Uint8Array(W*H);
+    for(let r=0;r<H;r++)for(let c=0;c<W;c++){ const i=r*W+c; if(reg[i]!==id) continue;
+      if(r===0||c===0||r===H-1||c===W-1||reg[i-1]!==id||reg[i+1]!==id||reg[i-W]!==id||reg[i+W]!==id) edge[i]=1; }
+    const mc=this.maskCanvas.getContext('2d'); mc.clearRect(0,0,W,H);
+    const fill=mc.createImageData(W,H); for(let i=0;i<W*H;i++) if(reg[i]===id){ fill.data[i*4]=255; fill.data[i*4+1]=255; fill.data[i*4+2]=245; fill.data[i*4+3]=34; }
+    mc.putImageData(fill,0,0);
+    const ec=document.createElement('canvas'); ec.width=W; ec.height=H; const ex=ec.getContext('2d'), ed=ex.createImageData(W,H);
+    for(let i=0;i<W*H;i++) if(edge[i]){ ed.data[i*4]=127; ed.data[i*4+1]=230; ed.data[i*4+2]=200; ed.data[i*4+3]=255; } ex.putImageData(ed,0,0);
+    mc.save(); mc.filter='blur(4px)'; mc.globalAlpha=0.9; mc.drawImage(ec,0,0); mc.drawImage(ec,0,0); mc.restore(); mc.drawImage(ec,0,0);
+    this.maskTex.needsUpdate=true; this.liftMesh.visible=true; this.hlU.fade.value=0; this.fadeTo=1;
+  }
+  hover(cx,cy){
+    if(!this.D) return; const h=this.pick(cx,cy); if(!h){ this.clearLift(); this.setState({hov:null}); return; }
+    const inDom=h.lat>=DOM.lat0&&h.lat<=DOM.lat1&&h.lon>=DOM.lon0&&h.lon<=DOM.lon1, id=inDom?this.regionAt(h.lat,h.lon):0;
+    if(this.state.placing&&inDom) this.placeMarker([h.lat,h.lon]);
+    this.lift(id);
+    const now=performance.now(); if(this.lastSet&&now-this.lastSet<30) return; this.lastSet=now;
+    this.setState({hov:{la:h.lat,lo:h.lon,inDom,id,px:h.px,py:h.py,elev:inDom?this.elevAt(h.lat,h.lon):null}});
+  }
+  branchVals(chip){ const s=this.state, sc=SCENS.find(x=>x.id===s.scen), cv=CVARS.find(c=>c.id===s.cvar), isC=s.scen==='custom';
+    const unis=[{id:'prime',name:'Timeline Prime'}].concat(s.hasBranch?[{id:'b',name:s.branchName}]:[]).map(u=>({name:u.name,pick:()=>this.setState({uni:u.id==='b'?'b':'prime'}),pressed:(s.uni===u.id)?'true':'false',border:(s.uni===u.id)?'rgba(127,216,190,0.6)':'rgba(159,194,182,0.25)',bg:(s.uni===u.id)?'rgba(127,216,190,0.14)':'transparent'}));
+    const runDisabled=!s.center&&!s.judge; const fmtA=isC?cv.fmt:sc.fmt, mn=isC?cv.min:sc.min, mxv=isC?cv.max:sc.max, stp=isC?cv.step:sc.step;
+    const where=s.judge?(s.judge==='warm'?'Judge test box · Bay of Bengal (8–20°N, 82–94°E)':'Judge test box · Arabian Sea (8–20°N, 65–75°E)'):(s.center?('Dropped at '+s.center[0].toFixed(1)+'°N '+s.center[1].toFixed(1)+'°E'+(this.D&&this.regionAt(s.center[0],s.center[1])>0?' · '+this.D.region.names[this.regionAt(s.center[0],s.center[1])]:' · over the sea')):'');
+    let oc={dayLabel:'',title:'',where:'',spread:'–',area:'–',peak:'–',peakUnit:'',metric:'',states:[],none:'',peakDay:''};
+    if(s.panel==='outcome'){ const o=this.outcome(); if(o){ const nm=SCENS.find(x=>x.id===s.ocScen)||sc;
+      oc={dayLabel:s.day===0?'THE MOMENT IT HITS':'DAY +'+s.day, title:(s.ocJudge?(s.ocJudge==='warm'?'Judge test: warm Bay of Bengal':'Judge test: Arabian Sea stall'):nm.name+' · '+s.ocAmt), where:s.ocWhere,
+        spread:Math.round(o.st.spread).toLocaleString('en-IN'), area:Math.round(o.st.area/1000).toLocaleString('en-IN'), peak:(o.st.peak>0?'+':'')+o.st.peak.toFixed(1), peakUnit:'peak '+o.M.metric,
+        metric:o.M.metric.toUpperCase(), states:o.states, none:o.states.length?'':'No Indian state is affected beyond the threshold on this day.', peakDay:o.bestDay===0?'at the start':'day +'+o.bestDay}; } }
+    return { unis, inBranch:s.uni==='b', views:[{id:'diff',name:'Difference'},{id:'branch',name:'Full field'}].map(v=>({name:v.name,...chip(s.view===v.id),pick:()=>this.setState({view:v.id})})),
+      openShock:()=>this.setState({panel:'build'}), closeShock:()=>this.setState({panel:null,placing:false}), openOutcome:()=>this.setState({panel:'outcome'}), closeOutcome:()=>this.setState({panel:null}),
+      panelBuild:s.panel==='build', panelOutcome:s.panel==='outcome', showOutcomeBtn:s.hasBranch&&s.panel!=='outcome', placing:s.placing, oc,
+      scens:SCENS.map(x=>({name:x.name,...chip(x.id===s.scen),pick:()=>this.setState({scen:x.id,camt:x.id==='custom'?cv.def:x.def,judge:null})})), scenText:sc.text, isCustom:isC,
+      cvars:CVARS.map(c=>({name:c.name,...chip(c.id===s.cvar),pick:()=>this.setState({cvar:c.id,camt:c.def})})), amtMin:mn, amtMax:mxv, amtStep:stp, camt:s.camt, amtText:fmtA(s.camt),
+      setAmt:(e)=>this.setState({camt:Number(e.target.value),judge:null}), crad:s.crad, radText:'about '+Math.round(s.crad*1.25*110)+' km across the core', setRad:(e)=>this.setState({crad:Number(e.target.value),judge:null}),
+      startPlacing:()=>this.setState({placing:!s.placing}), placingPressed:s.placing?'true':'false', placeText:s.placing?'Click the globe to drop it…':(where||'Drop it on the map'),
+      quick:QUICK.map(q=>({name:q.name,pick:()=>this.setState({scen:q.scen,judge:q.judge,center:q.center,crad:q.rad,camt:q.amt,placing:false})})),
+      runDisabled, runOpacity:runDisabled?0.45:1,
+      runBranch:()=>{ if(!this.P||runDisabled) return; this.delta=this.propagate(this.shockDelta()); this.branchId=(this.branchId||0)+1; this.cache={};
+        const nm=s.judge?(s.judge==='warm'?'Earth-B · warm Bay':'Earth-B · Arabian stall'):'Earth-B · '+sc.name.toLowerCase();
+        this.setState({hasBranch:true,branchName:nm,uni:'b',view:'diff',panel:'outcome',placing:false,day:0,ocScen:s.scen,ocJudge:s.judge,ocAmt:fmtA(s.camt),ocWhere:where,...(()=>{ const k=s.judge==='stall'||s.scen==='stall'?'ws':(isC?cv.key:sc.key); const t={t2m:'heat',tp:'rain',ws:'wind',msl:'pressure',tcwv:'moisture'}[k]; return {on:{...s.on,[t]:true},focus:t}; })()}); },
+      playing:s.playing, notPlaying:!s.playing, playLabel:s.playing?'Pause the 10-day rollout':'Play the 10-day rollout',
+      togglePlay:()=>{ if(s.playing){ clearInterval(this.player); this.setState({playing:false}); return; }
+        this.setState({playing:true,day:s.day>=10?0:s.day}); this.player=setInterval(()=>{ const d=this.state.day; if(d>=10){ clearInterval(this.player); this.setState({playing:false}); } else this.setState({day:d+1}); },1100); } };
+  }
+  renderVals(){
+    const s=this.state, FT=TILES.find(t=>t.id===s.focus), L=LAYERS.find(l=>l.id===((FT&&FT.w&&s.on[s.focus])?FT.w:'terrain')), D=this.D, h=s.hov;
+    const fmt=(x,d)=>Number(x).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d});
+    let ghost={big:'—',label:L.label,unit:L.unit,where:'Loading the globe…',row:[]}, imp={dryPct:'–',maxT:'–',hot:'–',heavyPct:'–',peak:'–',extreme:'–',clearPct:'–',meanWs:'–',windy:'–'};
+    let tip={on:false,x:0,y:0,region:'',ll:'',elev:''};
+    if(D){
+      const im=this.P?(s.uni==='prime'||!this.delta?'prime':'branch'):null; const wx=this.P?{t2m:this.arr('t2m',im),tp:this.arr('tp',im),ws:this.arr('ws',im),msl:this.arr('msl',im),tcwv:this.arr('tcwv',im)}:D.wx;
+      const land=D.wx.lsm.map((x,i)=>x?i:-1).filter(i=>i>=0), pct=n=>Math.round(100*n/land.length);
+      imp={dryPct:pct(land.filter(i=>wx.tp[i]<2.5).length), maxT:fmt(Math.max(...land.map(i=>wx.t2m[i])),1), hot:land.filter(i=>wx.t2m[i]>=40).length,
+        heavyPct:pct(land.filter(i=>wx.tp[i]>10).length), peak:fmt(Math.max(...wx.tp),0), extreme:wx.tp.filter(x=>x>50).length,
+        clearPct:pct(land.filter(i=>wx.tp[i]<1).length), meanWs:fmt(land.reduce((a,i)=>a+wx.ws[i],0)/land.length,1), windy:land.filter(i=>wx.ws[i]>5).length};
+      if(h){
+        const ns=(h.la>=0?h.la.toFixed(2)+'°N':(-h.la).toFixed(2)+'°S'), ew=(h.lo>=0?h.lo.toFixed(2)+'°E':(-h.lo).toFixed(2)+'°W');
+        if(h.inDom){
+          const name=D.region.names[h.id]||'Sea', el=Math.round(h.elev), elTxt=el>0?fmt(el,0)+' m above sea level':(el<0?fmt(-el,0)+' m below sea level':'At sea level');
+          tip={on:true,x:h.px,y:h.py,region:name.toUpperCase(),ll:ns+'  '+ew,elev:elTxt};
+          const g=k=>this.grid(k,h.la,h.lo), md=this.mode(), dv=md==='diff', sgn=x=>(dv&&x>0?'+':'')+fmt(x,L.dec);
+          ghost={big:L.key?sgn(g(L.key)):fmt(el,0),label:(dv&&L.key?'Δ ':'')+L.label,unit:L.key?L.unit:(el>=0?'m above sea level':'m below sea level'),where:(md==='prime'?'':(dv?'EARTH-B MINUS PRIME · ':'EARTH-B · '))+name.toUpperCase()+' · '+ns+' '+ew,
+            row:[{k:'ELEVATION',v:fmt(el,0),u:'m'},{k:(dv?'Δ ':'')+'RAIN',v:sgn(g('tp')),u:'mm/day'},{k:(dv?'Δ ':'')+'TEMP',v:sgn(g('t2m')),u:'°C'},{k:(dv?'Δ ':'')+'WIND',v:sgn(g('ws')),u:'m/s'},{k:(dv?'Δ ':'')+'PRESSURE',v:sgn(g('msl')),u:'hPa'},{k:(dv?'Δ ':'')+'MOISTURE',v:sgn(g('tcwv')),u:'kg/m²'}]};
+        } else { tip={on:true,x:h.px,y:h.py,region:'OUTSIDE THE STUDY AREA',ll:ns+'  '+ew,elev:'No model data here'}; ghost={big:'—',label:L.label,unit:'',where:'OUTSIDE THE STUDY AREA · '+ns+' '+ew,row:[]}; }
+      } else {
+        const st=L.key?{tp:['PEAK RAINFALL',fmt(Math.max(...wx.tp),0)],t2m:['HOTTEST CELL',imp.maxT],ws:['STRONGEST WIND',fmt(Math.max(...wx.ws),1)],msl:['DEEPEST LOW',fmt(Math.min(...wx.msl),0)],tcwv:['MOST MOIST',fmt(Math.max(...wx.tcwv),0)]}[L.id]:['HIGHEST POINT',fmt(Math.max(...D.elev.z),0)];
+        ghost={big:st[1],label:st[0],unit:L.key?L.unit:'m',where:'DRAG TO ORBIT · SCROLL TO ZOOM · SHIFT-DRAG TO ROLL · SUN, MOON & PLANETS IN REAL DIRECTIONS (SIZES EXAGGERATED)',row:[]};
+      }
+    }
+    const chip=(on)=>({border:on?'rgba(127,216,190,0.6)':'transparent',bg:on?'rgba(127,216,190,0.16)':'rgba(255,255,255,0.03)',pressed:on?'true':'false'});
+    const tiles=TILES.map(t=>{ const o=!!s.on[t.id]; return {name:t.name,thumb:t.thumb,op:o?1:0.45,tick:o?'ON':'',pressed:o?'true':'false',border:o?'rgba(127,216,190,0.85)':'rgba(159,194,182,0.18)',
+      pick:()=>{ const on={...s.on,[t.id]:!o}; let focus=s.focus; if(t.w&&!o) focus=t.id; else if(t.w&&o&&s.focus===t.id){ const nx=TILES.find(x=>x.w&&on[x.id]); focus=nx?nx.id:'terrain'; } this.setState({on,focus}); } }; });
+    const focusName=(FT&&FT.w&&s.on[s.focus])?FT.name:'Elevation';
+    const suns=TIMES.map(m=>({name:m.name,...chip(m.id===s.time),pick:()=>this.setState({time:m.id})}));
+    const days=Array.from({length:11},(_,k)=>({label:k===0?'Now':'+'+k,pressed:k===s.day?'true':'false',bg:k===s.day?'rgba(127,216,190,0.22)':'transparent',fg:k===s.day?'#F2FBF7':'#BFD9D0',pick:()=>this.setState({day:k})}));
+    return {ghost,tip,imp,tiles,focusName,suns,days,clock:s.clock||'',setCanvas:this.setCanvas,zoomIn:this.zoomIn,zoomOut:this.zoomOut,northUp:this.northUp,resetView:this.resetView,
+      showBoxes:s.showBoxes,showCells:s.showCells,toggleBoxes:()=>this.setState({showBoxes:!s.showBoxes}),toggleCells:()=>this.setState({showCells:!s.showCells}),
+      dayCaption:(s.uni==='prime'?(s.day===0?'Prime · start state · 4 Jul 2020':'Prime · day +'+s.day+' · stand-in: real observed day'):(s.branchName+' · day +'+s.day+' · preview spread')),
+      ...this.branchVals(chip)};
+  }
+}
+</script>
+</body>
+</html>
