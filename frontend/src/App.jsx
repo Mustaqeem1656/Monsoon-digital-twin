@@ -107,7 +107,8 @@ export default function App() {
     if (panel === 'events' && evCenter) { show = true; center = evCenter; radiusDeg = 8; }
     else if (panel === 'shocks') { if (sh.box) box = sh.box; else if (shId === 'custom' && shCenter) { show = true; center = shCenter; radiusDeg = crad; } }
     else if (run && !panel) { if (run.box) box = run.box; else { show = run.kind !== 'zero'; center = run.center; radiusDeg = run.radiusDeg; } }
-    e.setMarker({ show: show || !!placeFor, center, radiusDeg }); e.setBox(box);
+    const caption = (panel === 'events' && evCenter) || (run && !panel && run.kind === 'event') ? 'event core · 8° (~890 km) window' : null;
+    e.setMarker({ show: show || !!placeFor, center, radiusDeg, caption }); e.setBox(box);
     e.setTrack(run && run.metrics && run.metrics.track ? run.metrics.track.slice(0, day + 1) : null);
   }, [panel, evCenter, shCenter, crad, shId, run, placeFor, day, sh]);
   // live previews: warnings from the gateway
