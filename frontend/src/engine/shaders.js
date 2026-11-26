@@ -50,3 +50,29 @@ export const SUN_FS = `uniform sampler2D sunTex; uniform float time; varying vec
 export const ATM_VS = `varying vec3 vN; varying vec3 vP; void main(){ vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vP=mv.xyz; gl_Position=projectionMatrix*mv; }`;
 
 export const AIRGLOW_FS = `varying vec3 vN; varying vec3 vP; void main(){ float r=1.0-abs(dot(normalize(vN),normalize(-vP))); float f=smoothstep(0.90,0.985,r)*(1.0-smoothstep(0.985,1.0,r)); gl_FragColor=vec4(vec3(0.42,1.0,0.55)*f*0.35,f*0.3); }`;
+
+// Cloud proxy shell: cTex (36x32, south row first) R = cloud cover 0..1, G = heavy-rain factor 0..1, B/A = u10/v10
+// encoded as 0.5 + wind/30. Procedural fbm clouds are advected along the wind with a two-phase flow map.
+export const CLOUD_FS = `uniform sampler2D cTex, maskTex; uniform vec3 sunDir; uniform float time, fade; varying vec2 vUv; varying vec3 vS;
+  float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+  float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+    return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+  float fbm(vec2 p){ float a=0.5, s=0.0; for(int k=0;k<5;k++){ s+=a*vn(p); p=p*2.03+vec2(17.1,9.3); a*=0.5; } return s; }
+  void main(){
+    vec4 c=texture2D(cTex,vUv); float cover=c.r, rain=c.g; vec2 w=(c.ba-0.5)*30.0;
+    vec2 flow=vec2(w.x, w.y)*vec2(1.0/36.0, 1.0/32.0)*0.6;
+    float t=time*0.08, p0=fract(t), p1=fract(t+0.5), wt=abs(1.0-2.0*p0);
+    vec2 q=vUv*vec2(36.0,32.0)*0.55;
+    float n=mix(fbm(q-flow*p0*36.0+vec2(3.1,1.7)), fbm(q-flow*p1*36.0+vec2(11.3,7.9)), 1.0-wt);
+    float dens=smoothstep(1.0-cover, 1.0-cover+0.28, n)*(0.55+0.45*cover);
+    float edge=smoothstep(0.0,0.03,vUv.x)*smoothstep(0.0,0.03,1.0-vUv.x)*smoothstep(0.0,0.035,vUv.y)*smoothstep(0.0,0.035,1.0-vUv.y);
+    float m=texture2D(maskTex,vec2(vUv.x,vUv.y)).a;
+    float a=dens*(0.62+0.3*rain)*edge*m*fade; if(a<0.004) discard;
+    float day=0.22+0.9*smoothstep(-0.12,0.3,dot(vS,sunDir));
+    vec3 col=mix(vec3(0.93,0.95,0.97), vec3(1.0), rain)*(0.8+0.35*rain)*day;
+    gl_FragColor=vec4(col,a); }`;
+
+// Impact highlight: hiTex alpha marks the affected cells; a slow pulse.
+export const HI_FS = `uniform sampler2D hiTex; uniform float time, fade; varying vec2 vUv;
+  void main(){ vec4 m=texture2D(hiTex,vUv); if(m.a<0.01) discard; float p=0.65+0.35*sin(time*3.0);
+    gl_FragColor=vec4(m.rgb, m.a*p*fade); }`;

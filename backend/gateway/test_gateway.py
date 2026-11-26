@@ -89,9 +89,53 @@ def main():
     s, r = call("/run", {"preset_id": pid, "include_fields": False, "shock": {"type": "custom", "lat": 15, "lon": 77, "radius": 3.75, "variable": "t2m", "amount": 0.8}})
     check(r["fade"]["faded_by_day"] is not None or r["fade"]["last_affected_day"] is not None, f"fade summary present: {r['fade']}")
     asyncio.run(ws_test(pid))
+    impact_tests()
     print(f"\n/run wall time: mean {np.mean(times):.2f}s max {np.max(times):.2f}s")
     print("RESULT:", "all checks passed" if not FAIL else f"{len(FAIL)} FAILED")
     return 1 if FAIL else 0
+
+
+def _numbers(obj, acc):
+    if isinstance(obj, bool): return acc
+    if isinstance(obj, (int, float)): acc.add(round(abs(float(obj)), 1)); return acc
+    if isinstance(obj, dict): [_numbers(v, acc) for v in obj.values()]
+    if isinstance(obj, list): [_numbers(v, acc) for v in obj]
+    return acc
+
+
+def explanation_numbers_ok(tile) -> list:
+    """Every number written in the explanation must be a number in the tile (incl. its confidence block)."""
+    import re
+    have = _numbers({k: v for k, v in tile.items() if k != "explanation"}, set())
+    bad = [x for x in re.findall(r"\d+(?:\.\d+)?", " ".join(tile["explanation"])) if round(float(x), 1) not in have]
+    return bad
+
+
+def impact_tests():
+    print("impact dashboard")
+    runs = {}
+    for name, body in {"plain": {"preset_id": "heatwave"}, "zero": {"preset_id": "heatwave", "shock": {"type": "zero"}},
+                       "heatwave": {"preset_id": "quiet", "event": {"event_id": "heatwave", "strength": 100}},
+                       "warm": {"preset_id": "heavy-rain", "shock": {"type": "judge_warm"}}}.items():
+        call("/run", {**body, "include_fields": False})          # warm the central run (as the dashboard does)
+        t0 = time.perf_counter(); s, r = call("/impact", body); wall = time.perf_counter() - t0
+        runs[name] = r
+        check(s == 200 and len(r["tiles"]) == 5, f"/impact {name}: 5 tiles")
+        check(wall < 5.0 and r["ensemble"]["calls"] == 16, f"/impact {name}: ensemble of {r['ensemble']['members']} members, "
+              f"{r['ensemble']['calls']} live calls, {wall:.2f} s (< 5 s)")
+        bad = {t["id"]: explanation_numbers_ok(t) for t in r["tiles"] if t["active"]}
+        check(not any(bad.values()), f"/impact {name}: every number in the explanations is in the API response {bad if any(bad.values()) else ''}")
+        check(all(2 <= len(t["explanation"]) <= 4 for t in r["tiles"] if t["active"]), f"/impact {name}: 2-4 sentences per tile")
+    z = [t for t in runs["zero"]["tiles"] if t["active"]]
+    check(all(t["prime"] == t["branch"] and t["delta"] == 0 and not t["changed"] for t in z), "zero shock: every impact identical to the plain forecast")
+    check(all("No change" in t["explanation"][0] for t in z), "zero shock: every explanation says 'No change'")
+    h = next(t for t in runs["heatwave"]["tiles"] if t["id"] == "heat")
+    txt = " ".join(h["explanation"]); st = [x["state"] for x in h["top_states"]]
+    check(h["direction"] == "up" and h["delta"] > 0, f"heatwave event: heat stress up ({h['prime']['value']} -> {h['branch']['value']} K)")
+    check(st and all(x in txt for x in st) and "Madhya Pradesh" in st, f"heatwave event: explanation names the affected states {st}")
+    check("temperature" in txt and h["confidence"]["same_direction_pct"] >= 50, "heatwave event: driver = temperature, ensemble agrees")
+    p = runs["plain"]
+    check(all(len(t["prime"]["series"]) == 11 for t in p["tiles"] if t["active"]), "plain forecast: sparklines cover days 0-10")
 
 
 async def ws_test(pid):

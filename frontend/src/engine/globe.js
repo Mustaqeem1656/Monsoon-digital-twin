@@ -2,7 +2,7 @@
 // React owns the UI; this class owns the WebGL scene. Data comes in through setGeo / setFrames / setView.
 import * as T from 'three';
 import { sky, helio, toEq, PLANETS, sd, cd } from './ephemeris.js';
-import { GLOBE_VS, GLOBE_FS, SHELL_VS, WX_FS, LIFT_FS, SUN_VS, SUN_FS, ATM_VS, AIRGLOW_FS } from './shaders.js';
+import { GLOBE_VS, GLOBE_FS, SHELL_VS, WX_FS, LIFT_FS, SUN_VS, SUN_FS, ATM_VS, AIRGLOW_FS, CLOUD_FS, HI_FS } from './shaders.js';
 import { DOM, TEMPP, RAINP, DIV, LAYERS, TIMES } from '../data.js';
 
 const TEX = (import.meta.env.BASE_URL || '/') + 'textures/';
@@ -85,6 +85,15 @@ export class GlobeEngine {
     this.flowCanvas = document.createElement('canvas'); this.flowCanvas.width = 1080; this.flowCanvas.height = 960; this.flowTex = new T.CanvasTexture(this.flowCanvas); this.flowTex.colorSpace = T.NoColorSpace;
     this.flowMesh = new T.Mesh(domGeo(), new T.ShaderMaterial({ uniforms: { domElev: { value: domElev }, disp: { value: DISP }, lift: { value: 0.004 }, wxTex: { value: this.flowTex } }, vertexShader: SHELL_VS, fragmentShader: WX_FS, transparent: true, depthWrite: false }));
     this.flowMesh.visible = false; this.globe.add(this.flowMesh);
+    // cloud-proxy shell slightly above the surface (fed by setClouds) + impact highlight shell (setHighlight)
+    this.cData = new Uint8Array(36 * 32 * 4); this.cTex = new T.DataTexture(this.cData, 36, 32, T.RGBAFormat); this.cTex.magFilter = this.cTex.minFilter = T.LinearFilter; this.cTex.needsUpdate = true;
+    this.cloudU = { cTex: { value: this.cTex }, maskTex: { value: null }, sunDir: this.uni.sunDir, time: { value: 0 }, fade: { value: 0 }, domElev: { value: domElev }, disp: { value: 0 }, lift: { value: 0.012 } };
+    this.cloudMesh = new T.Mesh(domGeo(), new T.ShaderMaterial({ uniforms: this.cloudU, vertexShader: SHELL_VS, fragmentShader: CLOUD_FS, transparent: true, depthWrite: false }));
+    this.cloudMesh.visible = false; this.cloudMesh.renderOrder = 3; this.globe.add(this.cloudMesh);
+    this.hiCanvas = document.createElement('canvas'); this.hiCanvas.width = 720; this.hiCanvas.height = 640; this.hiTex = new T.CanvasTexture(this.hiCanvas);
+    this.hiU = { hiTex: { value: this.hiTex }, time: { value: 0 }, fade: { value: 0 }, domElev: { value: domElev }, disp: { value: DISP }, lift: { value: 0.005 } };
+    this.hiMesh = new T.Mesh(domGeo(), new T.ShaderMaterial({ uniforms: this.hiU, vertexShader: SHELL_VS, fragmentShader: HI_FS, transparent: true, depthWrite: false }));
+    this.hiMesh.visible = false; this.hiMesh.renderOrder = 2; this.globe.add(this.hiMesh);
     this.pins = new T.Group(); this.globe.add(this.pins); this.pinRings = [];
     [['WARM-OCEAN TEST', 14, 88], ['MONSOON-STALL TEST', 14, 70]].forEach(([t, la, lo]) => { const at = this.vec(la, lo).multiplyScalar(1.012);
       const dot = new T.Sprite(new T.SpriteMaterial({ map: dotTex, transparent: true, depthWrite: false })); dot.scale.set(0.028, 0.028, 1); dot.position.copy(at); this.pins.add(dot);
@@ -104,6 +113,9 @@ export class GlobeEngine {
     const loop = () => { if (this.dead) return;
       this.sunU.time.value = performance.now() / 1000;
       this.stepFlow();
+      const now = performance.now() / 1000; this.cloudU.time.value = now; this.hiU.time.value = now;
+      this.cloudU.fade.value += (((this.on && this.on.clouds) ? 1 : 0) - this.cloudU.fade.value) * 0.08; this.cloudMesh.visible = this.cloudU.fade.value > 0.01 && !!this.cloudU.maskTex.value;
+      this.hiU.fade.value += ((this.hiOn ? 1 : 0) - this.hiU.fade.value) * 0.15; this.hiMesh.visible = this.hiU.fade.value > 0.01;
       if (this.marker.visible) { const q = (performance.now() / 1200) % 1; this.markerPulse.scale.setScalar(1 + 0.6 * q); this.markerPulse.material.opacity = 0.8 * (1 - q); }
       const ph = (performance.now() / 1400) % 1; this.pinRings.forEach(rr => { const sz = 0.03 + 0.05 * ph; rr.scale.set(sz, sz, 1); rr.material.opacity = 1 - ph; }); this.pins.visible = this.view.showPins;
       this.hlU.fade.value += (this.fadeTo - this.hlU.fade.value) * 0.22; if (this.fadeTo === 0 && this.hlU.fade.value < 0.01) this.liftMesh.visible = false;
@@ -192,13 +204,24 @@ export class GlobeEngine {
     for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (x < W - 1) D[i] = Math.min(D[i], D[i + 1] + 1); if (y < H - 1) D[i] = Math.min(D[i], D[i + W] + 1); if (x < W - 1 && y < H - 1) D[i] = Math.min(D[i], D[i + W + 1] + 1.414); if (x > 0 && y < H - 1) D[i] = Math.min(D[i], D[i + W - 1] + 1.414); }
     const M = new Float32Array(W * H), c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d'), img = cx.createImageData(W, H);
     for (let i = 0; i < W * H; i++) { const v = inI[i] ? 1 : (foreign[i] ? 0 : Math.max(0, Math.min(1, 1 - (D[i] * 0.2 - 2.5) / 3.5))); M[i] = v; img.data[i * 4 + 3] = Math.round(255 * v); }
-    cx.putImageData(img, 0, 0); this.mask = c; this.maskA = M; }
+    cx.putImageData(img, 0, 0); this.mask = c; this.maskA = M; this.cloudU.maskTex.value = new T.CanvasTexture(c); }
   maskAt(la, lo) { const x = Math.floor((lo - DOM.lon0) / 36 * 180), y = Math.floor((DOM.lat1 - la) / 32 * 160); if (x < 0 || y < 0 || x >= 180 || y >= 160) return 0; return this.maskA[y * 180 + x]; }
 
   // ---- layers ---------------------------------------------------------------------------------------------
   setLayers(on) { this.on = on; const d = on.terrain ? DISP : 0; this.uni.disp.value = d; this.uni.lightsOn.value = on.lights ? 1 : 0; this.uni.bordersOn.value = on.borders ? 1 : 0; this.shellDisp.forEach(u => (u.value = d)); this.paintWx(); }
   /** view = {frame: {t2m,tp,u,v,msl,tcwv,ws} in display units, flow: frame for wind particles, mode: 'prime'|'branch'|'diff', showCells, showPins} */
   setView(view) { this.view = { ...this.view, ...view }; this.paintWx(); }
+  /** cloud proxy for the shown day: {cover, rain} 0..1 and wind {u, v} m/s, flat north-first 32x36 arrays */
+  setClouds(c) { if (!c) return; const D = this.cData, enc = x => Math.max(0, Math.min(255, Math.round((0.5 + x / 30) * 255)));
+    for (let r = 0; r < 32; r++) for (let k = 0; k < 36; k++) { const i = r * 36 + k, o = ((31 - r) * 36 + k) * 4;
+      D[o] = Math.round(255 * c.cover[i]); D[o + 1] = Math.round(255 * c.rain[i]); D[o + 2] = enc(c.u[i]); D[o + 3] = enc(c.v[i]); }
+    this.cTex.needsUpdate = true; }
+  /** highlight affected cells [[lat, lon], ...] in colour rgb 'r,g,b' (null clears) */
+  setHighlight(cells, rgb = '233,215,138') { this.hiOn = !!(cells && cells.length); if (!this.hiOn) return;
+    const W = 720, H = 640, x = this.hiCanvas.getContext('2d'); x.clearRect(0, 0, W, H); const cw = W / 36, ch = H / 32;
+    x.fillStyle = `rgba(${rgb},0.38)`; x.strokeStyle = `rgba(${rgb},0.95)`; x.lineWidth = 3;
+    cells.forEach(([la, lo]) => { const px = (lo - 0.5 - DOM.lon0) * cw, py = (DOM.lat1 - la - 0.5) * ch; x.fillRect(px, py, cw, ch); x.strokeRect(px + 1.5, py + 1.5, cw - 3, ch - 3); });
+    this.hiTex.needsUpdate = true; }
   grid(key, la, lo) { const a = this.view.frame && this.view.frame[key]; if (!a) return 0; let gy = 37.5 - la, gx = lo - 65.5; gy = Math.max(0, Math.min(31, gy)); gx = Math.max(0, Math.min(35, gx));
     const y0 = Math.floor(gy), x0 = Math.floor(gx), y1 = Math.min(31, y0 + 1), x1 = Math.min(35, x0 + 1), fy = gy - y0, fx = gx - x0, v = (r, c) => a[r * 36 + c];
     return (v(y0, x0) * (1 - fx) + v(y0, x1) * fx) * (1 - fy) + (v(y1, x0) * (1 - fx) + v(y1, x1) * fx) * fy; }

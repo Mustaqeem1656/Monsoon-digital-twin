@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from backend.gateway import events, geo, impact, presets_builder, shocks
+from backend.gateway import ensemble, events, explain, geo, impact, presets_builder, shocks
 
 HERE = Path(__file__).resolve().parent
 CFG = json.loads((HERE / "config.json").read_text())
@@ -156,7 +156,23 @@ def _perturbation(req: dict, last: np.ndarray):
     return None, None
 
 
+_CACHE: dict = {}
+
+
+def _key(req: dict) -> str:
+    return json.dumps({k: req.get(k) for k in ("preset_id", "steps", "shock", "event")}, sort_keys=True)
+
+
 def _compute(req: dict):
+    """Cached: the impact endpoint reuses the central Prime/Branch of the last few /run or /stream requests."""
+    k = _key({**req, "steps": int(req.get("steps", 10))})
+    if k not in _CACHE:
+        _CACHE[k] = _compute_live(req)
+        while len(_CACHE) > 8: _CACHE.pop(next(iter(_CACHE)))
+    return _CACHE[k]
+
+
+def _compute_live(req: dict):
     pid, steps, init, truth, meta, pert, info = _prepare(req)
     t0 = time.perf_counter()
     fp = POOL.submit(run_model, init, meta["doy_sincos"], steps, None)
@@ -174,7 +190,7 @@ def _compute(req: dict):
     if info and info.get("kind") == "event":
         start_b = init[-1] + pert
         ev = events.metrics(info["type"], start_b, branch, init[-1], prime, *centre, doys, thresholds())
-    return {"event_metrics": ev, "pid": pid, "meta": meta, "steps": steps, "shock": info, "prime": prime, "branch": branch, "diff": diff,
+    return {"event_metrics": ev, "pid": pid, "init": init, "pert": pert, "doys": doys, "meta": meta, "steps": steps, "shock": info, "prime": prime, "branch": branch, "diff": diff,
             "truth": truth[:steps], "outcome": outc, "outcome_day0": day0, "fade": fade_summary([day0] + outc),
             "impacts": impact.impacts(prime, branch, doys, meta.get("forecast_months", [])),
             "timing": {"model_calls_s": round(model_s, 3), "server_ms_prime": ms_p, "server_ms_branch": ms_b}}
@@ -269,6 +285,25 @@ def run(req: dict):
     if fields:
         out.update(prime=_r(res["prime"]), branch=_r(res["branch"]), difference=_r(res["diff"]), truth=_r(res["truth"]))
     return _json(out)
+
+
+@app.post("/impact")
+def impact_dashboard(req: dict):
+    """Impact KPI tiles for the plain forecast (no shock/event) or one shock/event: Prime value, with-change value,
+    delta, level, top states, hotspots, sparkline series (day 0-S), ensemble confidence and a template explanation."""
+    t0 = time.perf_counter(); res = _compute(req); meta = res["meta"]
+    pert = res["pert"]; has_change = pert is not None; init = res["init"]
+    start_doy = int(meta["doy"]); months = meta.get("forecast_months", [])
+    b_start = init[-1] + (pert if has_change else 0)
+    tl = impact.tiles(init[-1], b_start, res["prime"], res["branch"], res["doys"], start_doy, months)
+    conf = ensemble.confidence(run_model, init, meta["doy_sincos"], res["steps"], pert, has_change, tl, res["doys"],
+                               start_doy, months, CFG["ensemble"])
+    for t in tl:
+        t["confidence"] = conf["by_tile"].get(t["id"])
+        t["explanation"] = explain.explain(t, t["confidence"], has_change)
+    return _json({"preset_id": res["pid"], "has_change": has_change, "shock": res["shock"], "tiles": tl,
+                  "ensemble": {k: v for k, v in conf.items() if k != "by_tile"},
+                  "timing": {"ensemble_s": conf["seconds"], "total_s": round(time.perf_counter() - t0, 3)}})
 
 
 @app.websocket("/stream")

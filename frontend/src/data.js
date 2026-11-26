@@ -30,6 +30,7 @@ export const TILES = [
   { id: 'wind', name: 'Wind', w: 'ws', thumb: 'repeating-linear-gradient(170deg,#0E2230 0 5px,#CFEFE6 5px 6px,#0E2230 6px 11px)' },
   { id: 'pressure', name: 'Pressure', w: 'msl', thumb: 'repeating-radial-gradient(circle at 40% 55%,#12303F 0 6px,#E7F2EE 6px 7px)' },
   { id: 'moisture', name: 'Moisture', w: 'tcwv', thumb: 'radial-gradient(circle at 50% 50%,#E6FBFF 0 18%,#8FD6E6 38%,#10303F 70%)' },
+  { id: 'clouds', name: 'Clouds', thumb: 'radial-gradient(circle at 30% 45%,#F4F8FA 0 14%,transparent 34%),radial-gradient(circle at 66% 58%,#DDE8EE 0 16%,transparent 38%),#16384A' },
   { id: 'lights', name: 'City lights', thumb: 'radial-gradient(circle at 25% 40%,#FFD27A 0 4%,transparent 9%),radial-gradient(circle at 60% 30%,#FFC25A 0 3%,transparent 8%),radial-gradient(circle at 70% 70%,#FFD27A 0 5%,transparent 11%),radial-gradient(circle at 40% 75%,#FFB347 0 3%,transparent 8%),#05090F' },
 ];
 export const TILE_KEY = { heat: 't2m', rain: 'tp', wind: 'ws', pressure: 'msl', moisture: 'tcwv' };
@@ -82,6 +83,7 @@ export const api = {
   events: () => req('/events'),
   eventPreview: (preset_id, event) => req('/event/preview', { preset_id, event }),
   preview: (preset_id, shock) => req('/shock/preview', { preset_id, shock }),
+  impact: body => req('/impact', body),
   run: (preset_id, shock, steps = 10) => req('/run', { preset_id, shock, steps }),
   /** body = {preset_id, shock} or {preset_id, event} */
   stream(body, onMsg, steps = 10) {
@@ -139,4 +141,21 @@ export function prepGeo(g) {
     elev = { res: E.res, rows: E.rows, cols: E.cols, z };
   }
   return { reg, rows, cols, res: R.res, names, indian, unassigned, elev, std: g.grid.std, lsm: g.land_sea_mask };
+}
+
+/** Cloud proxy (NOT a model output; the model has no cloud channel). Per cell:
+ *  normal = mean tcwv of the 3 real start days (start-state window, same season), anom = tcwv - normal
+ *  cover  = clamp(0.5 * smoothstep(20, 60, tcwv) + 0.04 * anom + 0.55 * min(rain / 20, 1), 0, 1)
+ *  rain   = min(rain / 30, 1)  (heavy rain -> brighter, denser cloud)
+ *  frame = toFrame() output (tcwv kg/m2, tp mm/day, u/v m/s); normal = Float32Array from cloudNormal(). */
+export function cloudNormal(initStates) {
+  const fr = initStates.map(toFrame), n = new Float32Array(NCELL);
+  for (let i = 0; i < NCELL; i++) n[i] = (fr[0].tcwv[i] + fr[1].tcwv[i] + fr[2].tcwv[i]) / 3;
+  return n;
+}
+export function cloudProxy(frame, normal) {
+  const cover = new Float32Array(NCELL), rain = new Float32Array(NCELL), ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let i = 0; i < NCELL; i++) { const q = frame.tcwv[i], r = Math.max(0, frame.tp[i]);
+    cover[i] = Math.max(0, Math.min(1, 0.5 * ss(20, 60, q) + 0.04 * (q - normal[i]) + 0.55 * Math.min(r / 20, 1))); rain[i] = Math.min(r / 30, 1); }
+  return { cover, rain, u: frame.u, v: frame.v };
 }

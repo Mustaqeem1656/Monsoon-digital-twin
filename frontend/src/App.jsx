@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GlobeEngine } from './engine/globe.js';
-import { api, prepGeo, toFrame, addDelta, diffFrame, LAYERS, TILES, TIMES, SHOCKS, CVARS, EVENT_TILES, shockSpec, eventSpec, fmtSigned } from './data.js';
+import { api, prepGeo, toFrame, addDelta, diffFrame, LAYERS, TILES, TIMES, SHOCKS, CVARS, EVENT_TILES, shockSpec, eventSpec, fmtSigned, cloudNormal, cloudProxy } from './data.js';
 
 const RAD = Math.PI / 180;
 const fmt = (x, d) => Number(x).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -44,7 +44,7 @@ export default function App() {
   const canvasRef = useRef(null), eng = useRef(null);
   const [G, setG] = useState(null), [presets, setPresets] = useState([]), [pid, setPid] = useState(null), [events, setEvents] = useState([]);
   const [prime, setPrime] = useState(null), [primeMs, setPrimeMs] = useState(null), [health, setHealth] = useState(null), [err, setErr] = useState('');
-  const [on, setOn] = useState({ terrain: true, elev: false, borders: true, lights: true, heat: true, rain: false, wind: false, pressure: false, moisture: false });
+  const [on, setOn] = useState({ terrain: true, elev: false, borders: true, lights: true, heat: true, rain: false, wind: false, pressure: false, moisture: false, clouds: false });
   const [focus, setFocus] = useState('heat'), [time, setTime] = useState('noon'), [clock, setClock] = useState(''), [day, setDay] = useState(0);
   const [showPins, setShowPins] = useState(true), [showCells, setShowCells] = useState(false), [hov, setHov] = useState(null);
   const [panel, setPanel] = useState(null), [view, setView] = useState('diff'), [playing, setPlaying] = useState(false);
@@ -52,6 +52,7 @@ export default function App() {
   const [evId, setEvId] = useState('cyclone'), [evStrength, setEvStrength] = useState(100), [evCenter, setEvCenter] = useState(null), [evWarn, setEvWarn] = useState([]);
   const [shId, setShId] = useState('judge_warm'), [cvar, setCvar] = useState('t2m'), [camt, setCamt] = useState(2), [crad, setCrad] = useState(4), [shCenter, setShCenter] = useState(null), [shWarn, setShWarn] = useState([]);
   const [run, setRun] = useState(null), [busy, setBusy] = useState(false);
+  const [impPlain, setImpPlain] = useState(null), [impRun, setImpRun] = useState(null), [impSel, setImpSel] = useState(null), [why, setWhy] = useState(null);
 
   // ---- engine + static data ----
   useEffect(() => {
@@ -67,9 +68,10 @@ export default function App() {
   placeCb.current = (la, lo) => { if (placeFor === 'event') setEvCenter([la, lo]); if (placeFor === 'shock') setShCenter([la, lo]); setPlaceFor(null); };
   // ---- start preset -> plain forecast (live /run with nothing added) ----
   useEffect(() => {
-    if (!pid) return; setPrime(null); setRun(null); setDay(0);
+    if (!pid) return; setPrime(null); setRun(null); setDay(0); setImpPlain(null); setImpRun(null); setImpSel(null);
     Promise.all([api.preset(pid), api.run(pid, null)]).then(([p, r]) => {
-      setPrime({ frames: [toFrame(p.init_states[2]), ...r.prime.map(toFrame)], meta: p }); setPrimeMs(r.timing.server_ms_prime);
+      setPrime({ frames: [toFrame(p.init_states[2]), ...r.prime.map(toFrame)], meta: p, normal: cloudNormal(p.init_states) }); setPrimeMs(r.timing.server_ms_prime);
+      return api.impact({ preset_id: pid }).then(setImpPlain);
     }).catch(x => setErr('Forecast failed: ' + x.message));
   }, [pid]);
 
@@ -82,6 +84,11 @@ export default function App() {
   }, [prime, run, day, mode]);
   const flow = !prime ? null : (run && mode !== 'without' && run.frames[day]) ? run.frames[day] : prime.frames[day];
   useEffect(() => { eng.current && eng.current.setLayers(on); }, [on]);
+  useEffect(() => { if (eng.current && on.clouds && flow && prime) eng.current.setClouds(cloudProxy(flow, prime.normal)); }, [on.clouds, flow, prime]);
+  const imp = run ? impRun : impPlain;
+  useEffect(() => { const t = imp && impSel && imp.tiles.find(x => x.id === impSel); eng.current && eng.current.setHighlight(t && t.active ? t.highlight : null); }, [imp, impSel]);
+  const pickImpact = t => { if (!t.active) return; if (impSel === t.id) { setImpSel(null); return; } setImpSel(t.id);
+    const L = TILES.find(x => x.id === t.layer); setOn(o => ({ ...o, [t.layer]: true })); if (L && L.w) setFocus(t.layer); };
   useEffect(() => { eng.current && eng.current.setView({ frame, flow, mode: mode === 'diff' ? 'diff' : 'prime', showCells, showPins }); }, [frame, flow, mode, showCells, showPins]);
   useEffect(() => { eng.current && eng.current.setSky({ mode: time, dateIso: prime ? prime.meta.last_input_day : null, day }); }, [time, prime, day]);
   useEffect(() => { eng.current && eng.current.setPlacing(!!placeFor); }, [placeFor]);
@@ -127,13 +134,14 @@ export default function App() {
           tiles: shId === 'custom' ? [cv.tile] : (sh.tile ? [sh.tile] : []) };
       }
       r = { ...r, frames: [addDelta(prime.frames[0], pv.perturbation)], outcome: [pv.outcome_day0], thr: pv.thresholds, metrics: null, ms: null, pert: pv.perturbation };
-      setRun({ ...r }); setPanel(null); setView('diff'); setDay(0);
+      setRun({ ...r }); setPanel(null); setView('diff'); setDay(0); setImpRun(null);
       if (r.tiles.length) { setOn(o => { const n = { ...o }; r.tiles.forEach(t => (n[t] = true)); return n; }); setFocus(r.tiles[0]); }
       const done = await api.stream(body, m => { if (m.type === 'day') { r.frames[m.day] = toFrame(m.branch); r.outcome[m.day] = m.outcome; setRun({ ...r, frames: [...r.frames], outcome: [...r.outcome] }); } });
       setRun({ ...r, frames: [...r.frames], outcome: [...r.outcome], metrics: done.event_metrics, fade: done.fade, ms: done.timing.server_ms_branch });
+      api.impact(body).then(setImpRun).catch(x => setErr('Impacts failed: ' + x.message));
     } catch (x) { setErr('Run failed: ' + x.message); } finally { setBusy(false); }
   }
-  const backToEarth = () => { setRun(null); setPanel(null); setPlaceFor(null); setDay(0); };
+  const backToEarth = () => { setRun(null); setImpRun(null); setPanel(null); setPlaceFor(null); setDay(0); };
 
   // ---- top-left: Current conditions (nothing running) ----
   const FT = TILES.find(t => t.id === focus), L = LAYERS.find(l => l.id === ((FT && FT.w && on[focus]) ? FT.w : 'terrain'));
@@ -324,6 +332,7 @@ export default function App() {
           </div>
         </div>
 
+        <ImpactRow imp={imp} run={run} day={day} sel={impSel} pick={pickImpact} why={why} setWhy={setWhy} />
         <div className="glass" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 999, maxWidth: 'calc(100% - 48px)', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" aria-label={playing ? 'Pause the 10-day rollout' : 'Play the 10-day rollout'} onClick={() => { if (!playing && day >= 10) setDay(0); setPlaying(!playing); }}
             style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(127,216,190,0.6)', background: 'rgba(127,216,190,0.14)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -368,4 +377,47 @@ function EventMetrics({ run, day }) {
       <span style={{ fontSize: 10, color: '#9FC2B6' }}>{m.note}</span></>;
   }
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span className="cap" style={{ color: 'rgb(110,200,235)' }}>{run.title.split(' · ')[0].toUpperCase()} DETAILS</span>{body}</div>;
+}
+
+// ---- Impact dashboard ------------------------------------------------------------------------------------------
+const LEVEL_C = { Low: '127,216,190', Moderate: '233,215,138', High: '242,178,107', Severe: '224,122,79' };
+const tfmt = (x, u) => (u === '%' ? fmt(x, 1) + '%' : fmt(x, 1) + ' ' + u);
+
+function Spark({ t, day }) {
+  const W = 236, H = 50, a = t.prime.series, b = t.branch.series, all = [...a, ...b], lo = Math.min(...all), hi = Math.max(...all), r = hi - lo || 1;
+  const pt = (s, k) => [(k / (s.length - 1)) * (W - 8) + 4, H - 12 - ((s[k] - lo) / r) * (H - 18)];
+  const line = s => s.map((_, k) => pt(s, k).join(',')).join(' '), c = `rgb(${LEVEL_C[t.branch.level]})`;
+  const [x, y] = pt(b, Math.min(day, b.length - 1));
+  return <svg width={W} height={H} role="img" aria-label={`${t.name} over days 0 to 10`} style={{ display: 'block' }}>
+    <polyline points={line(a)} fill="none" stroke="rgba(191,217,208,0.55)" strokeWidth="1.4" strokeDasharray="3 3" />
+    <polyline points={line(b)} fill="none" stroke={c} strokeWidth="1.8" />
+    <circle cx={x} cy={y} r="3" fill={c} />
+    <text x="4" y={H - 1} fontSize="9" fill="#9FC2B6">day 0</text><text x={W - 34} y={H - 1} fontSize="9" fill="#9FC2B6">day 10</text></svg>;
+}
+
+function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
+  if (!imp) return <div data-testid="impact-row" style={{ alignSelf: 'center', marginBottom: 10, fontSize: 12, color: '#9FC2B6' }}>Computing impacts (16 live model runs)…</div>;
+  return <section aria-label="Impact dashboard" data-testid="impact-row" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 'calc(100% - 660px)', minWidth: 300 }}>
+    {imp.tiles.map(t => { const c = t.active ? LEVEL_C[t.branch.level] : '159,194,182', on = sel === t.id, cf = t.confidence;
+      const agree = !cf ? '' : imp.has_change ? `${cf.same_direction}/${cf.members} agree` : `${cf.same_level}/${cf.members} agree`;
+      return <div key={t.id} style={{ position: 'relative' }}>
+        <div role="button" tabIndex={0} aria-pressed={on} data-testid={'impact-' + t.id} onClick={() => pick(t)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && pick(t)} className="glass"
+          style={{ width: 140, padding: '8px 10px', borderRadius: 14, cursor: t.active ? 'pointer' : 'default', border: `1px solid rgba(${c},${on ? 0.95 : 0.4})`, boxShadow: on ? `0 0 14px rgba(${c},0.35)` : 'none', display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
+          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}><span className="cap" style={{ letterSpacing: '0.08em' }}>{t.name.toUpperCase()}</span>
+            {t.active && <span data-testid={'level-' + t.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `rgba(${c},0.2)`, color: `rgb(${c})` }}>{t.branch.level}</span>}</span>
+          {t.active ? <>
+            <span className="fred" style={{ fontSize: 20, fontWeight: 500, color: '#F2FBF7' }}>{tfmt(t.branch.value, t.unit)}</span>
+            <span className="mono" style={{ fontSize: 11, color: imp.has_change && t.delta !== 0 ? '#F5EBC0' : '#9FC2B6' }}>{imp.has_change ? 'Δ ' + (t.delta > 0 ? '+' : '') + fmt(t.delta, 1) + ' vs plain' : 'plain forecast'}</span>
+            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#9FC2B6' }}><span title="ensemble members agreeing">{agree}</span>
+              <button type="button" aria-expanded={why === t.id} onClick={e => { e.stopPropagation(); setWhy(why === t.id ? null : t.id); }} style={{ ...btn, minHeight: 22, padding: '0 8px', fontSize: 10, border: '1px solid rgba(159,194,182,0.35)', background: 'transparent' }}>Why? {why === t.id ? '▴' : '▾'}</button></span>
+          </> : <span style={{ fontSize: 11, color: '#9FC2B6' }}>Off season (Jun–Sep only)</span>}
+        </div>
+        {why === t.id && t.active && <div role="region" aria-label={t.name + ' explanation'} data-testid={'why-' + t.id} className="glass" style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', width: 260, padding: 12, borderRadius: 14, zIndex: 6, border: `1px solid rgba(${c},0.5)`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <Spark t={t} day={day} />
+          <span style={{ fontSize: 10, color: '#9FC2B6' }}>{imp.has_change ? 'solid: with the change · dashed: plain forecast' : 'daily value, day 0 (start) to day 10'}</span>
+          {t.explanation.map((x, i) => <p key={i} style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#E7F2EE' }}>{x}</p>)}
+        </div>}
+      </div>; })}
+    <span style={{ width: '100%', textAlign: 'center', fontSize: 10, color: '#9FC2B6' }}>Screening proxies from live model runs, not official warnings · click a tile to show its layer and area{sel === 'solar' ? ' · clouds = cloud proxy from moisture and rain' : ''}</span>
+  </section>;
 }

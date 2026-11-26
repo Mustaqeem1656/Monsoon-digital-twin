@@ -22,6 +22,9 @@ const tileOn = n => tile(n).getAttribute('aria-pressed').then(v => v === 'true')
 const hdr = n => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: n, exact: true });
 const dayBtn = n => page.getByRole('group', { name: 'Forecast day' }).getByRole('button', { name: n, exact: true });
 const drop = async (la, lo) => { await page.getByRole('button', { name: /Drop it on the map|Drop point/ }).click(); const p = await at(la, lo); await page.mouse.click(p.x, p.y); await page.waitForTimeout(400); };
+
+const impTiles = () => page.locator('[data-testid^=impact-]:not([data-testid=impact-row])');
+const waitImpact = () => page.waitForFunction(() => document.querySelectorAll('[data-testid^=level-]').length >= 4, null, { timeout: 30000 });
 const waitDone = () => page.waitForFunction(() => !/running…/.test(document.querySelector('[data-testid=caption]').innerText) && !/Waiting for the model|arrive when all 10 days/.test(document.body.innerText), null, { timeout: 40000 });
 
 await page.goto(URL);
@@ -100,6 +103,11 @@ ok(await page.evaluate(() => !!window.__globe.boxLine), 'Warm Bay of Bengal show
 await shot('13_shocks_panel');
 await page.getByRole('button', { name: 'Zero shock', exact: true }).click(); ok(/difference: exactly 0/.test(await body()), 'Zero shock panel promises "difference: exactly 0"');
 await page.getByRole('button', { name: 'Run the shock' }).click(); await page.waitForFunction(() => /OUTCOME/.test(document.body.innerText), null, { timeout: 30000 }); await waitDone();
+await waitImpact(); { const tx = await impTiles().allInnerTexts(), act = tx.filter(x => !/Off season/.test(x));
+  ok(act.length >= 4 && act.every(x => /Δ 0\.0 vs plain/.test(x)), 'Zero shock: every impact tile shows Δ 0.0 vs plain (' + act.length + ' tiles)');
+  await page.getByTestId('impact-heat').getByRole('button', { name: /Why/ }).click(); await page.waitForTimeout(300);
+  ok(/No change/.test(await page.getByTestId('why-heat').innerText()), 'Zero shock: heat "Why?" says No change'); await shot('16_impact_zero_why');
+  await page.getByTestId('impact-heat').getByRole('button', { name: /Why/ }).click(); }
 for (const d of ['Now', '+1', '+10']) { await dayBtn(d).click(); await page.waitForTimeout(250); ok(/difference: exactly 0/.test(await body()), 'Zero shock outcome day ' + d + ': "difference: exactly 0"'); }
 ok(/Zero shock/.test(await body()) && !/Cyclone details/i.test(await body()), 'running a new shock replaced the cyclone (one at a time)');
 await hdr('Shocks').click(); await page.getByRole('button', { name: 'Weaker Arabian Sea winds', exact: true }).click(); await page.getByRole('button', { name: 'Run the shock' }).click();
@@ -116,6 +124,28 @@ for (const d of ['Now', '+1']) { await dayBtn(d).click(); await page.waitForTime
 // ---- back to Earth ----
 await hdr('Earth').click(); await page.getByRole('button', { name: /^Back to Earth/ }).click(); await page.waitForTimeout(400);
 ok(!/OUTCOME/.test(await body()) && (await page.locator('[aria-label="Current conditions"]').count()) === 1, 'Back to Earth clears the run and brings back Current conditions');
+// ---- Impact dashboard on the plain forecast ----
+await waitImpact(); { const tx = await impTiles().allInnerTexts();
+  ok(tx.length === 5 && ['FLOOD RISK', 'HEAT STRESS', 'CROP-WATER STRESS', 'SOLAR', 'WIND POWER'].every((n, i) => tx[i].startsWith(n)) && tx.filter(x => /plain forecast/.test(x)).length >= 4,
+    'Impact dashboard: 5 KPI tiles on the plain forecast (' + tx.map(x => x.split('\n')[0]).join(' / ') + ')');
+  ok(tx.filter(x => /\d+\/16 agree/.test(x)).length >= 4, 'Impact tiles show ensemble agreement out of 16 members'); }
+await page.getByTestId('impact-flood').getByRole('button', { name: /Why/ }).click(); await page.waitForTimeout(300);
+{ const w = page.getByTestId('why-flood'), t = await w.innerText(), n = await w.locator('svg polyline').count();
+  ok(/Flood risk on the plain forecast/.test(t) && /Confidence: \d+ of 16/.test(t) && n === 2, '"Why?" shows the explanation and a day 0–10 sparkline'); }
+await shot('15_impact_plain_why');
+await page.getByTestId('impact-flood').getByRole('button', { name: /Why/ }).click();
+await page.getByTestId('impact-heat').click(); await page.waitForTimeout(700);
+ok(await page.evaluate(() => window.__globe.hiOn && window.__globe.hiMesh.visible) && await tileOn('Heat'), 'clicking Heat stress turns on the Heat layer and highlights the affected cells');
+await shot('17_impact_heat_highlight');
+await page.getByTestId('impact-heat').click(); await page.waitForTimeout(500);
+ok(await page.evaluate(() => !window.__globe.hiOn), 'clicking the tile again clears the highlight');
+await page.getByTestId('impact-solar').click(); await page.waitForTimeout(1200);
+ok(await tileOn('Clouds') && await page.evaluate(() => window.__globe.cloudMesh.visible && window.__globe.cData.some((v, i) => i % 4 === 0 && v > 60)),
+  'clicking Solar turns on the Clouds layer (cloud proxy shell drawn, cover > 0)');
+ok(/cloud proxy from moisture and rain/.test(await body()), 'Clouds layer labelled "cloud proxy from moisture and rain"');
+for (const k of ['Rain', 'Heat']) if (await tileOn(k)) await tile(k).click();
+await page.waitForTimeout(800); await shot('18_clouds_layer');
+await page.getByTestId('impact-solar').click();
 // ---- Moon ----
 const moon = await page.evaluate(() => { const g = window.__globe, m = g.bodies.Moon.grp; return { d: m.position.length(), r: m.children[0].geometry.parameters.radius, ring: !!g.moonRing }; });
 ok(Math.abs(moon.d - 12) < 1e-6 && Math.abs(moon.r - 0.35) < 1e-6 && moon.ring, `Moon at ${moon.d.toFixed(1)} Earth radii, radius ${moon.r}, orbit ring`);
