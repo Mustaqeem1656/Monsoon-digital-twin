@@ -22,12 +22,12 @@ A fast, physics-aware digital twin of India's daily weather:
 - 8 hidden calls: 5 real windows after 2023-01-10 (monsoon onset, heavy rain, heatwave, cyclone, western disturbance) + 3 shocks (warm_ocean: +3 K t2m and +15% tcwv in Bay of Bengal box lat 8–20 lon 82–94; monsoon_stall: −40% u10/v10 in Arabian Sea box lat 8–20 lon 65–75; null: zeros must give output identical to no-perturbation within 1e-3 std → model must be deterministic).
 - Scoring: forecast skill 45 (lat-weighted RMSE skill vs the better of persistence and climatology at days 1, 4, 8, all channels; full marks at skill 0.12) + heavy-rain CSI at 10 mm/day (15). Dynamics 25: anti-blur (day-8 spatial variance 40–250% of real, per channel) + shock causality (day-1 ≥60% response energy within 3 cells of the box; spreads outward days 4–8, never faster than 8 cells/day; never >5 std).
 - Hard gate: beat persistence at day 4; valid on all 8 (no NaN/Inf, rain ≥ 0, t2m in [233.15, 333.15] K); localized non-zero response to ≥1 shock.
-- Repo scan: no weather APIs, no hardcoded dates, no lookup tables or shipped archives of past weather, real training code, weights inside repo (Git LFS ok, < 2 GB). Dashboard code must be separate from server code. Repo must be created during the hackathon (it was).
+- Repo scan: no weather APIs, no hardcoded dates, no lookup tables or shipped archives of past weather, real training code, weights inside repo as PLAIN git files (organisers forbid Git LFS; never re-enable it), < 2 GB. Dashboard code must be separate from server code. Repo must be created during the hackathon (it was).
 
 ## Repo layout (keep to this)
 - `serve.py` (root) — inference server only; imports the model from `backend/model`, weights from `backend/weights` (paths relative to its own file)
 - `training/` (root) — training code + config.yaml; saves to `backend/weights/`
-- `backend/model/` network + inference runtime; `backend/weights/` (Git LFS: *.pt, *.onnx); `backend/eval/` baselines + local grader; `backend/gateway/` dashboard backend; `backend/tools/` one-off scripts
+- `backend/model/` network + inference runtime; `backend/weights/` (plain git, NOT Git LFS); `backend/eval/` baselines + local grader; `backend/gateway/` dashboard backend; `backend/tools/` one-off scripts
 - `frontend/` 3D dashboard: Vite + React + three.js (`src/engine/` = mockup logic, `src/App.jsx` = UI), textures in `frontend/public/textures/`, approved design in `frontend/blueprint/`. Talks only to the gateway. `npm run dev` / `npm run test:e2e`. `brief/` 2-page PDF material
 - `data/`, `cache/` at the root, git-ignored. Run modules from the root: `python -m backend.eval.local_grader`, `python -m backend.gateway.app`
 

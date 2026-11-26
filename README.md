@@ -26,7 +26,7 @@ The model works on a 32 × 36 grid of 1° cells (lat 6.5–37.5 °N, lon 65.5–
 | `backend/eval/impulse.py` | Impulse test: poke one cell, measure how far the response travels per day. |
 | `backend/tools/explore.py` | One-off data exploration and plots (laptop only). |
 | `backend/tools/export_onnx.py` | Exports `model.pt` → `model.onnx` and checks both give the same output. |
-| `backend/weights/` | `model.pt`, `model.onnx` (Git LFS), `norm.json` (normalisation constants + model name). |
+| `backend/weights/` | `model.pt`, `model.onnx` (plain git, about 2 MB each; organisers require no Git LFS), `norm.json` (normalisation constants + model name). |
 | `backend/gateway/` | Dashboard backend (FastAPI, port 8100): presets, shock builder, Prime vs Branch runs, impacts. Talks to `serve.py` over HTTP only. |
 | `frontend/` | 3D dashboard (Vite + React + three.js). Talks only to the gateway; kept separate from the server. |
 
