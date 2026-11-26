@@ -170,7 +170,7 @@ export default function App() {
   const ready = health && health.inference_server && health.inference_server.ready;
   const scenDate = prime ? nice(addDays(prime.meta.last_input_day, day)) + ' · ' + (day === 0 ? 'start' : 'day +' + day) : '';
   const caption = !prime ? 'Loading the forecast from the model…' : !run ? (day === 0 ? 'Start state (real data)' : 'Plain forecast · day +' + day)
-    : run.title + ' · ' + { with: 'with it', diff: 'difference', without: 'without it' }[view] + (run.frames[day] ? '' : ' · running…');
+    : run.title + ' · ' + { with: 'with it', diff: 'difference', without: 'without it' }[view] + (busy || !run.frames[day] ? ' · running…' : '');
 
   const placer = (center, who) => <button type="button" aria-pressed={placeFor === who} onClick={() => setPlaceFor(placeFor === who ? null : who)}
     style={{ ...btn, minHeight: 40, border: '1px solid rgba(233,215,138,0.7)', background: 'rgba(233,215,138,0.12)', color: '#F5EBC0', fontWeight: 600 }}>
