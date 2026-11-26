@@ -123,6 +123,7 @@ are set in `backend/gateway/config.json`.
 | `GET /geography` | Model grid, land mask, orography, and a 0.05° state/country raster (RLE) with names |
 | `GET /events`, `POST /event/preview` | The 5 weather events (real date, centre, signature); build one at any centre and strength and get its warnings, without running the model |
 | `GET /shocks`, `POST /shock/preview` | The 4 shocks; build one and see its size in std units, without running the model |
+| `POST /impact` | Impact KPI tiles for the plain forecast or one shock/event: value, delta, level, top states, day 0-10 series, ensemble confidence (16 live calls, < 5 s) and a template explanation |
 | `POST /run` | Prime (no shock) and Branch (shock) rollouts, their difference, an outcome per day (day 0 to 10), impacts, and the day the shock fades |
 | `WS /stream` | The same as `/run`, sent day by day for the animation |
 
@@ -173,6 +174,20 @@ returns Prime, Branch and the difference:
 - June–September crop-water stress (rain deficit vs climatology, with India land as the cropland proxy)
 - solar proxy (rain-free, low-moisture days)
 - wind-power proxy (10 m speed cubed)
+
+**Impact dashboard** (`POST /impact`). Five tiles, each with a Low/Moderate/High/Severe level and documented thresholds:
+flood risk (IMD category of the wettest cell; Moderate 15.6, High 64.5, Severe 115.6 mm/day), heat stress (anomaly
+3 / 5 K, Severe when the hot cell also averages 35 °C or more), crop-water stress (June–September: share of cropland with
+a rain deficit of 50% or more), solar (share of clear, dry land; the level is solar *loss*) and wind power (speed cubed).
+River cascade and snowmelt routing are not built, so they are not reported.
+- *Confidence*: `backend/gateway/ensemble.py` nudges the start state with small, smooth, seeded noise and sends every
+  member to `/simulate` live: 16 members for the plain forecast, or 8 members run both without and with the change
+  (16 calls; `serve.py` answers one call at a time, so 16 calls is the < 5 s budget, about 1.6 s on the laptop).
+- *Explanations*: `backend/gateway/explain.py`, fixed sentence templates (no language model). Every number in the text is
+  taken from the API response, and `test_gateway` checks this.
+- *Clouds layer*: a **cloud proxy from moisture and rain** (the model has no cloud channel). It combines the moisture
+  anomaly against the 3 start days with the rain rate (formula in `frontend/src/data.js`), drawn as drifting clouds on a shell
+  just above the surface.
 
 No weather data is committed. `backend/gateway/presets/presets.json` holds only preset names, descriptions and selection
 rules; the windows themselves and the pentad climatology are computed at startup from `data/` into `cache/`.
