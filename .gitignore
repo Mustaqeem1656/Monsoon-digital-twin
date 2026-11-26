@@ -9,3 +9,4 @@ backend/gateway/static/clim_pentad.npz
 frontend/node_modules/
 frontend/dist/
 frontend/tests/shots/
+.venv-data/

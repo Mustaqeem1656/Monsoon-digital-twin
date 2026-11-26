@@ -2,7 +2,7 @@
 
 - persistence: tomorrow (and every later day) looks exactly like the last day we saw.
 - climatology: each day looks like the long-term average for that calendar day, computed from TRAINING years only
-  (2005-2018) using the kit's own monsoon_r1.stats.climatology (15-day smoothed calendar-day mean).
+  (TRAIN_YEARS) using the kit's own monsoon_r1.stats.climatology (15-day smoothed calendar-day mean).
 
 Both have the same signature as serve.simulate, so the local grader can score them like any model.
 """

@@ -2,6 +2,9 @@
 
 A fast, physics-aware digital twin of India's daily weather, built for Yugaantar DevForge Track 2.
 
+**Brief (2 pages): [brief/brief.pdf](brief/brief.pdf)** · **Evidence: [RESULTS.md](RESULTS.md)** (grader, validator, repo
+scan, data check, timing, training log, ablations) · **Rules: [Rules compliance](#rules-compliance)**
+
 - **Timeline Prime**: give it 3 consecutive days of weather and it rolls forward day by day (10+ steps) without
   exploding or blurring.
 - **Multiverse**: add a localized shock (e.g. a warmer Bay of Bengal, a stalled Arabian Sea monsoon flow) and watch
@@ -32,7 +35,7 @@ The model works on a 32 × 36 grid of 1° cells (lat 6.5–37.5 °N, lon 65.5–
 
 `data/` (the organisers' training archive) is git-ignored and never committed. Caches go in git-ignored `cache/`.
 
-## Quick start (serve)
+## How to run
 
 ```bash
 python serve.py --port 8000                                  # listens on 0.0.0.0
@@ -192,7 +195,7 @@ River cascade and snowmelt routing are not built, so they are not reported.
 No weather data is committed. `backend/gateway/presets/presets.json` holds only preset names, descriptions and selection
 rules; the windows themselves and the pentad climatology are computed at startup from `data/` into `cache/`.
 
-## Dashboard (frontend)
+## Visualization
 
 A 3D Earth centred on India with terrain relief, independent map-layer tiles (Terrain, Elevation, Borders, Heat, Rain,
 Wind, Pressure, Moisture, City lights), and weather drawn over India and the nearby seas only. Everything is live from
@@ -224,7 +227,7 @@ npm run test:e2e                     # optional: browser test (header, panels, e
 python backend/tools/verify_data.py  # data-accuracy check: dataset vs gateway vs dashboard readout (needs all three running)
 ```
 
-## Model summary
+## Model design
 
 - **Inputs (26 maps)**:
   - the last 3 days × 6 channels, normalised (rain as `log1p`)
@@ -243,7 +246,30 @@ python backend/tools/verify_data.py  # data-accuracy check: dataset vs gateway v
 - **Deterministic**: no dropout or sampling at inference, so a zero perturbation gives bit-identical output.
 - **Speed**: a 10-step rollout over HTTP takes about 0.25 s on CPU (limit 5 s).
 
-## Current local scores
+## How we prevent drift and blur
+
+Each item names the file that does it.
+- **Residual, zero-initialised step** (`backend/model/net.py`): `next = current + network(inputs)`. The head starts at
+  zero, so training starts from persistence and only learns corrections.
+- **Trained on its own outputs** (`training/train.py`, `training/config.yaml` `stage_b`): after one-day training
+  (stage A, 30 epochs) the model is fine-tuned on 2-, 4- and 8-day rollouts (6/6/8 epochs). Gradients flow through the
+  whole rollout, so errors that build up over days are penalised directly. This is what stops drift.
+- **Anti-blur loss term** (`training/train.py` `loss_fn`): squared log-ratio between the predicted and true spatial
+  variance of every map, in physical units / std, which is what the judge's anti-blur check measures. MSE alone rewards
+  smooth, blurry maps; this term penalises losing variance.
+- **Heavy-rain weighting** (`loss_fn`, `rain_heavy_weight`): cells with real rain above the threshold weigh more, so the
+  model does not shrink rain toward the mean.
+- **Rain in log1p space**, rain ≥ 0, t2m clamped to the valid range, tcwv ≥ 0 at every step (`backend/model/net.py`,
+  `backend/model/runtime.py`): values can't run away.
+- **Input noise 0.02 std while training** (`config.yaml` `input_noise`): makes the step robust to its own small errors.
+- **Local operators only**: per-cell LayerNorm (no batch/group norm), receptive field 7 cells/day, so a shock spreads
+  at a bounded speed instead of leaking everywhere.
+- **Measured** (see [RESULTS.md](RESULTS.md)): day-8 spatial variance is 40–250 % of the real variance on every
+  channel (anti-blur 10/10), and 10-step rollouts stay finite and in range on every window.
+
+## Results
+
+Full, current evidence is in [RESULTS.md](RESULTS.md) and [results/](results/). The table below is a summary.
 
 Measured with `backend/eval/local_grader.py` over HTTP against `serve.py`, in a fresh Python 3.12 venv with only the allowed
 libraries. Validation years 2019–2021, 35 windows.
@@ -275,7 +301,7 @@ the same network step inside the same numpy rollout loop.
 `python backend/tools/export_onnx.py --check` in an environment that has onnxruntime. We tested the fallback by starting the
 server with torch blocked; it served correctly and passed the schema validator.
 
-## Limitations
+## Failure modes
 
 - **Coarse grid**: 1° cells cannot resolve cyclone cores, orographic rain bands or city-scale heat.
 - **Daily means**: temperature and the other channels are daily averages, so day–night extremes (e.g. heatwave
@@ -290,8 +316,42 @@ server with torch blocked; it served correctly and passed the schema validator.
 - **Rain extremes are underpredicted**: the model rarely forecasts more than about 50 mm/day in a 1° cell, while real
   events reach 250 mm/day. IMD heavy-rain categories are therefore usually empty in forecasts.
 
-## Data and credits
+## Impact use case
 
+The dashboard turns each live forecast into five impact tiles: **flood risk**, **heat stress**, **crop-water stress**
+(June–September), **solar** and **wind power**. Each tile shows the value on the plain forecast, the value with a shock
+or event, the Δ, a level (Low/Moderate/High/Severe), the most affected states and a day 0–10 sparkline. Rules and
+thresholds are in `backend/gateway/impact.py`.
+- Heat stress is in °C above the normal for the date. Solar and crop-water stress are judged against the normal for
+  the same dates (training-years normals, built at startup from the kit file into the git-ignored `cache/`). Wind power
+  is in W/m² (0.5 · 1.225 · v³) and as a % of normal.
+- **Confidence** (`backend/gateway/ensemble.py`): 16 live `/simulate` calls with small seeded nudges to the start state,
+  < 5 s in total. The tile shows the share of members that agree on the level or direction.
+- **Explanation** (`backend/gateway/explain.py`): fixed sentence templates, no language model. Every number in the text
+  comes from the API response, and `backend/gateway/test_gateway.py` checks this.
+- Example: a heatwave event over Madhya Pradesh raises heat stress from Moderate to High. The text names Madhya
+  Pradesh, Maharashtra and Uttar Pradesh, temperature as the driver, and 8 of 8 members agreeing.
+These are screening proxies for planning and teaching, not official IMD warnings.
+
+## Rules compliance
+
+| Rule | Evidence |
+|---|---|
+| `serve.py` at the repo root, listens on 0.0.0.0 | `serve.py` (`uvicorn.run(app, host="0.0.0.0", ...)`); `/health` + `/simulate` per the kit contract |
+| Allowed libraries only at judging | `serve.py`, `backend/model/runtime.py` import only numpy, torch (CPU) / onnxruntime fallback, fastapi, uvicorn + stdlib |
+| Writes only to /tmp (repo read-only) | `serve.py` and `backend/model/` write no files; weights are only read from `backend/weights/` |
+| Offline, no weather APIs anywhere (frontend included) | `git grep` for open-meteo, openweathermap, weatherapi, cdsapi, ERA5/WeatherBench buckets, etc.: no matches in code ([results/repo_scan.json](results/repo_scan.json), [RESULTS.md](RESULTS.md#offline-check)) |
+| No hard-coded dates or lookup tables in inference code | judge's `monsoon_r1.repo_scan`: anti-cheat 8/8, no flags ([results/repo_scan.json](results/repo_scan.json)) |
+| No past-weather archives in git | presets, climatology and normals are built at runtime from the kit's `data/india_climate_train.nc` into git-ignored `cache/` (`backend/gateway/presets_builder.py`); tracked files listed in [results/tracked_files.txt](results/tracked_files.txt) (only fixed geography: land mask, orography, state raster) |
+| Real training code | `training/train.py`, `training/config.yaml`; log summary in [RESULTS.md](RESULTS.md#training-log) |
+| Weights in the repo as plain git files (no LFS), < 2 GB | `backend/weights/model.pt` (2.1 MB), `model.onnx` (2.1 MB), `norm.json`; no `.gitattributes` / LFS |
+| Dashboard separate from the server | `frontend/` (Vite app) → `backend/gateway/app.py` (port 8100) → HTTP → `serve.py`; the gateway never loads the model |
+| Dashboard driven live by `/simulate` | `backend/gateway/app.py` `run_model()` posts every rollout to the inference server; `ensemble.confidence()` calls it 16× |
+| All work created during the hackathon | git history of this repo (first commit to now) |
+
+## Credits
+
+- **ERA5**: Contains modified Copernicus Climate Change Service information (ERA5, ECMWF); via Google Research WeatherBench 2.
 - **Training data**: the organisers' dataset (`india_climate_train.nc`, derived from ERA5) and the `monsoon_r1` kit
   (API contract, scoring, schema validator, repo scan). Neither is redistributed in this repo.
 - **Region raster** (`backend/gateway/static/regions.json`, built by `backend/tools/build_geography.py`):

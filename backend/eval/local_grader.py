@@ -8,7 +8,7 @@ Usage:
 NOTE: never write the HTTP route string of the server in this file: the judge's repo_scan would then treat this
 file as inference code. All HTTP goes through monsoon_r1.client.
 
-Test windows come from the validation years 2019-2021 and are chosen from the data by simple criteria that mimic the
+Test windows come from the validation years (VAL_YEARS) and are chosen from the data by simple criteria that mimic the
 5 hidden cases (onset, heavy rain, heatwave, cyclone, western disturbance), plus N random windows.
 """
 from __future__ import annotations

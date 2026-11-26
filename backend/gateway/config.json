@@ -9,5 +9,5 @@
  "cors_origin_regex": "^https?://(localhost|127\\.0\\.0\\.1)(:\\d+)?$",
  "affected_thresholds": {"t2m_K": 0.5, "tp_mm_day": 2.0, "wind_speed_m_s": 0.5, "msl_hPa": 1.0, "tcwv_kg_m2": 2.0},
  "round_decimals": 3,
- "ensemble": {"members_plain": 16, "pairs_with_change": 8, "noise_std_frac": 0.03, "smooth_cells": 2.0, "seed": 2024}
+ "ensemble": {"members_plain": 16, "pairs_with_change": 8, "noise_std_frac": 0.03, "smooth_cells": 2.0, "seed": 7}
 }
