@@ -291,8 +291,6 @@ export default function App() {
             {hbtn('earth', 'Earth', '121,135,110')}{hbtn('events', 'Weather events', TEAL)}{hbtn('shocks', 'Shocks', AMBER)}
           </nav>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-            <span>{prime ? prime.meta.name : '…'} · <span className="fred" style={{ color: 'var(--text-strong)', fontSize: 14 }}>{scenDate}</span></span>
-            <span className="mono" style={{ color: 'var(--text-faint)' }} title="Sky clock (Sun, Moon, planets, day and night)">{clock}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: ready ? 'var(--accent)' : '#E07A4F' }} />{ready ? 'Engine ready' : 'Engine offline'}</span>
             <span className="mono" style={{ color: 'var(--text-faint)' }}>10-day rollout · {primeMs ? primeMs.toFixed(0) + ' ms' : '…'}</span>
           </div>
