@@ -409,13 +409,21 @@ function Spark({ t, day }) {
     <text x="4" y={H - 1} fontSize="9" fill="currentColor">day 0</text><text x={W - 34} y={H - 1} fontSize="9" fill="currentColor">day 10</text></svg>;
 }
 
+/** Docked "Impact" strip just above the timeline (left edge never under the Map layers panel); Hide/Show collapses it. */
+const DOCK = { position: 'absolute', left: 'max(362px, calc(50% - 480px))', bottom: 88, maxWidth: 'calc(100% - 386px)', zIndex: 3, pointerEvents: 'auto',
+  padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 };
 function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
-  if (!imp) return <div data-testid="impact-row" style={{ alignSelf: 'center', marginBottom: 10, fontSize: 12, color: 'var(--text-faint)' }}>Computing impacts (16 live model runs)…</div>;
-  return <section aria-label="Impact dashboard" data-testid="impact-row" style={{ pointerEvents: 'auto', alignSelf: 'center', marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 'calc(100% - 660px)', minWidth: 300 }}>
+  const [open, setOpen] = useState(true);
+  const head = <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+    <h2 className="fred" style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-strong)' }}>Impact</h2>
+    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{ border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: '2px 4px' }}>{open ? 'Hide' : 'Show'}</button></div>;
+  if (!imp) return <section aria-label="Impact dashboard" data-testid="impact-row" className="glass" style={DOCK}>{head}{open && <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Computing impacts (16 live model runs)…</span>}</section>;
+  return <section aria-label="Impact dashboard" data-testid="impact-row" className="glass" style={DOCK}>{head}
+    {open && <><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
     {imp.tiles.map(t => { const c = t.active ? LEVEL_C[t.branch.level] : '121,135,110', on = sel === t.id, cf = t.confidence;
       const agree = !cf ? '' : imp.has_change ? `${cf.same_direction}/${cf.members} agree` : `${cf.same_level}/${cf.members} agree`;
       return <div key={t.id} style={{ position: 'relative' }}>
-        <div role="button" tabIndex={0} aria-pressed={on} data-testid={'impact-' + t.id} onClick={() => pick(t)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && pick(t)} className="glass"
+        <div role="button" tabIndex={0} aria-pressed={on} data-testid={'impact-' + t.id} onClick={() => pick(t)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && pick(t)}
           style={{ width: 156, padding: '8px 10px', borderRadius: 12, cursor: t.active ? 'pointer' : 'default', border: '1px solid ' + (on ? 'var(--accent-edge)' : 'var(--hairline)'), borderLeft: `3px solid rgb(${c})`, background: on ? 'var(--accent-soft)' : undefined, display: 'flex', flexDirection: 'column', gap: 3, opacity: t.active ? 1 : 0.55 }}>
           <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}><span className="cap" style={{ letterSpacing: '0.08em' }}>{t.name.toUpperCase()}</span>
             {t.active && <span data-testid={'level-' + t.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `rgba(${c},0.3)`, color: 'var(--text-strong)' }}>{t.branch.level}</span>}</span>
@@ -432,7 +440,7 @@ function ImpactRow({ imp, run, day, sel, pick, why, setWhy }) {
           <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{imp.has_change ? 'solid: with the change · dashed: plain forecast' : 'daily value, day 0 (start) to day 10'}</span>
           {t.explanation.map((x, i) => <p key={i} style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: 'var(--text)' }}>{x}</p>)}
         </div>}
-      </div>; })}
-    <span style={{ width: '100%', textAlign: 'center', fontSize: 10, color: 'var(--text-faint)' }}>Screening proxies from live model runs, not official warnings · click a tile to show its layer and area{sel === 'solar' ? ' · clouds = cloud proxy from moisture and rain' : ''}</span>
+      </div>; })}</div>
+    <span style={{ width: '100%', textAlign: 'center', fontSize: 10, color: 'var(--text-faint)' }}>Screening proxies from live model runs, not official warnings · click a tile to show its layer and area{sel === 'solar' ? ' · clouds = cloud proxy from moisture and rain' : ''}</span></>}
   </section>;
 }

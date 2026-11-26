@@ -17,3 +17,6 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
   box-shadow: 0 0 0 3px rgba(121,135,110,0.35); cursor: pointer; }
 input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #FFFFFF; box-shadow: 0 0 0 3px rgba(121,135,110,0.35); }
 input[type=checkbox] { accent-color: var(--accent); }
+/* the docked Impact strip (bottom, above the timeline) reaches under the right-hand panels on screens narrower than
+   ~1960 px: keep those panels' bottom edge above it (they scroll) */
+@media (max-width: 1960px) { .panel { max-height: calc(100% - 460px); } }
