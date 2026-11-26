@@ -36,7 +36,8 @@ NOTE_HEAT = "Heat-stress index from daily-mean temperature vs climatology. Not a
 
 @lru_cache(maxsize=1)
 def clim():
-    z = np.load(HERE / "static" / "clim_pentad.npz"); return z["clim"]          # [73, 2(t2m,tp), 32, 36]
+    from gateway.presets_builder import CACHE
+    z = np.load(CACHE / "clim_pentad.npz"); return z["clim"]          # [73, 2(t2m,tp), 32, 36]
 
 
 def clim_for(doys):

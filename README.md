@@ -100,9 +100,14 @@ That gives one window per event type per year, plus 20 random windows. It also r
 
 ## Gateway (dashboard backend)
 
+Setup: put the organisers' kit data (`india_climate_train.nc`, `stats.json`) in `data/`. On first start the gateway
+builds its 6 presets and the climatology from that file into the git-ignored `cache/gateway/` folder (a few seconds).
+If the file is missing, it stops with a message telling you to download the kit data.
+
 ```bash
 python serve.py --port 8000        # inference server
 python -m gateway.app              # gateway on http://127.0.0.1:8100 (settings in gateway/config.json)
+python -m gateway.presets_builder --force   # optional: rebuild the cache by hand
 python -m gateway.test_gateway     # end-to-end test of every endpoint and shock type
 ```
 
@@ -112,7 +117,7 @@ are set in `gateway/config.json`.
 | Endpoint | What it does |
 |---|---|
 | `GET /health` | Gateway status, and whether the inference server is ready |
-| `GET /presets`, `GET /presets/{id}` | Six start windows (onset, heavy rain, heatwave, Bay of Bengal low, western disturbance, quiet): the 3 input days plus the 10 real days that followed |
+| `GET /presets`, `GET /presets/{id}` | Six start windows, built at startup from `data/` (onset, heavy rain, heatwave, Bay of Bengal low, western disturbance, quiet): the 3 input days plus the 10 real days that followed |
 | `GET /geography` | Model grid, land mask, orography, and a 0.05° state/country raster (RLE) with names |
 | `GET /shocks`, `POST /shock/preview` | Shock types and parameters; build a shock and see its size in std units, without running the model |
 | `POST /run` | Prime (no shock) and Branch (shock) rollouts, their difference, an outcome per day, and impacts |
@@ -136,8 +141,8 @@ returns Prime, Branch and the difference:
 - solar proxy (rain-free, low-moisture days)
 - wind-power proxy (10 m speed cubed)
 
-The presets (6 short windows from the validation years) and a pentad climatology of t2m and rain are bundled for
-the dashboard only. They are not used by `serve.py`.
+No weather data is committed. `gateway/presets/presets.json` holds only preset names, descriptions and selection
+rules; the windows themselves and the pentad climatology are computed at startup from `data/` into `cache/`.
 
 ## Model summary
 

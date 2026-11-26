@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from gateway import geo, impact, shocks
+from gateway import geo, impact, presets_builder, shocks
 
 HERE = Path(__file__).resolve().parent
 CFG = json.loads((HERE / "config.json").read_text())
@@ -70,14 +70,15 @@ def run_model(init: np.ndarray, doy_sincos, steps: int, pert: np.ndarray | None)
 # ---- presets ---------------------------------------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def presets_meta():
-    return {p["id"]: p for p in json.loads((HERE / "presets" / "presets.json").read_text())}
+    idx = json.loads((presets_builder.CACHE / "presets_index.json").read_text())
+    return {p["id"]: {**p, **idx[p["id"]]} for p in json.loads((HERE / "presets" / "presets.json").read_text())}
 
 
 @lru_cache(maxsize=16)
 def preset_arrays(pid: str):
     if pid not in presets_meta():
         raise HTTPException(404, f"unknown preset {pid!r}; see GET /presets")
-    z = np.load(HERE / "presets" / f"{pid}.npz"); return z["init"].astype("f4"), z["truth"].astype("f4")
+    z = np.load(presets_builder.CACHE / f"{pid}.npz"); return z["init"].astype("f4"), z["truth"].astype("f4")
 
 
 # ---- outcome of a shock per day --------------------------------------------------------------------------------
@@ -146,7 +147,7 @@ def health():
 
 @app.get("/presets")
 def list_presets():
-    return _json([{k: p[k] for k in ("id", "name", "description", "last_input_day", "first_forecast_day", "doy",
+    return _json([{k: p[k] for k in ("id", "name", "description", "selection_rule", "last_input_day", "first_forecast_day", "doy",
                                      "doy_sincos", "forecast_months")} for p in presets_meta().values()])
 
 
@@ -222,6 +223,11 @@ async def stream(ws: WebSocket):
     except WebSocketDisconnect:
         return
 
+
+try:                                                     # build presets + climatology from data/ (cached in cache/)
+    presets_builder.build()
+except FileNotFoundError as e:
+    raise SystemExit("\n" + str(e)) from None
 
 if __name__ == "__main__":
     import uvicorn

@@ -3,164 +3,36 @@
   "id": "onset",
   "name": "Monsoon onset",
   "description": "Rain surges over Kerala as the southwest monsoon arrives.",
-  "last_input_day": "2021-06-11",
-  "first_forecast_day": "2021-06-12",
-  "doy": 162,
-  "doy_sincos": [
-   0.3456123126707335,
-   -0.9383773917408641
-  ],
-  "forecast_months": [
-   6
-  ],
-  "forecast_doys": [
-   163,
-   164,
-   165,
-   166,
-   167,
-   168,
-   169,
-   170,
-   171,
-   172
-  ]
+  "selection_rule": "late May-mid June start with the largest jump in Kerala rain over the next 10 days (validation years, best year)"
  },
  {
   "id": "heavy-rain",
   "name": "Heavy-rain spell",
   "description": "A peak-monsoon spell with widespread heavy rain over land.",
-  "last_input_day": "2019-07-23",
-  "first_forecast_day": "2019-07-24",
-  "doy": 204,
-  "doy_sincos": [
-   -0.3617137307297674,
-   -0.9322892131745134
-  ],
-  "forecast_months": [
-   7,
-   8
-  ],
-  "forecast_doys": [
-   205,
-   206,
-   207,
-   208,
-   209,
-   210,
-   211,
-   212,
-   213,
-   214
-  ]
+  "selection_rule": "July/August start with the most land cells above 10 mm/day over the next 10 days (validation years, best year)"
  },
  {
   "id": "heatwave",
   "name": "Pre-monsoon heatwave",
   "description": "The hottest 10 days over north-central India in May.",
-  "last_input_day": "2019-05-31",
-  "first_forecast_day": "2019-06-01",
-  "doy": 151,
-  "doy_sincos": [
-   0.5160623910158528,
-   -0.8565509959010036
-  ],
-  "forecast_months": [
-   6
-  ],
-  "forecast_doys": [
-   152,
-   153,
-   154,
-   155,
-   156,
-   157,
-   158,
-   159,
-   160,
-   161
-  ]
+  "selection_rule": "May start with the hottest next 10 days over north-central India land (validation years, best year)"
  },
  {
   "id": "cyclone",
   "name": "Bay of Bengal low",
   "description": "The deepest sea-level pressure low over the Bay of Bengal.",
-  "last_input_day": "2020-05-09",
-  "first_forecast_day": "2020-05-10",
-  "doy": 130,
-  "doy_sincos": [
-   0.7856498550787147,
-   -0.6186714032625031
-  ],
-  "forecast_months": [
-   5
-  ],
-  "forecast_doys": [
-   131,
-   132,
-   133,
-   134,
-   135,
-   136,
-   137,
-   138,
-   139,
-   140
-  ]
+  "selection_rule": "start with the deepest Bay of Bengal sea-level-pressure low in the next 10 days (validation years, best year)"
  },
  {
   "id": "western-disturbance",
   "name": "Western disturbance",
   "description": "A winter system bringing rain and snow to the far north.",
-  "last_input_day": "2019-02-11",
-  "first_forecast_day": "2019-02-12",
-  "doy": 42,
-  "doy_sincos": [
-   0.6616346182422783,
-   0.7498264012045686
-  ],
-  "forecast_months": [
-   2
-  ],
-  "forecast_doys": [
-   43,
-   44,
-   45,
-   46,
-   47,
-   48,
-   49,
-   50,
-   51,
-   52
-  ]
+  "selection_rule": "December-February start with the most rain over the far north in the next 10 days (validation years, best year)"
  },
  {
   "id": "quiet",
   "name": "Quiet weather",
   "description": "The calmest 10 days: little day-to-day change anywhere.",
-  "last_input_day": "2021-01-24",
-  "first_forecast_day": "2021-01-25",
-  "doy": 24,
-  "doy_sincos": [
-   0.401487989205973,
-   0.9158642882672872
-  ],
-  "forecast_months": [
-   1,
-   2
-  ],
-  "forecast_doys": [
-   25,
-   26,
-   27,
-   28,
-   29,
-   30,
-   31,
-   32,
-   33,
-   34
-  ]
+  "selection_rule": "start with the smallest mean day-to-day change over the next 10 days (validation years, best year)"
  }
 ]

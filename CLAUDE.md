@@ -32,6 +32,6 @@ A fast, physics-aware digital twin of India's daily weather:
 ## Working rules
 - The user does not write code; explain each step briefly in plain language (what it does and why) so he understands the system.
 - Work layer by layer. After each layer works, run its check, then `git add` + `git commit` with a clear message, and `git push`.
-- Gateway rules: never write the route text in gateway .py (paths live in gateway/config.json); presets are 6 short validation windows in gateway/presets (dashboard only, never imported by serve.py) — the only past-weather data allowed in the repo.
+- Gateway rules: never write the route text in gateway .py (paths live in gateway/config.json); gateway presets and climatology are built at startup from data/ into git-ignored cache/gateway/ (gateway/presets_builder.py) — no past-weather data is committed anywhere, no exceptions.
 - Never commit `data/*.nc` or `.venv`. All .npy/.npz caches go in git-ignored `cache/` (repo_scan flags arrays with >400 days of 32x36 grids as a weather archive). Never write the route string "/simulate" outside serve.py — repo_scan treats any such file (and its imports) as inference code; eval uses monsoon_r1.client. Never hardcode dates or ship past-weather data in the repo.
 - Validation split: train 2005–2018, validate 2019–2021. Report every result against persistence and climatology.

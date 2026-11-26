@@ -4,3 +4,5 @@ __pycache__/
 
 tools/plots/
 cache/
+gateway/presets/*.npz
+gateway/static/clim_pentad.npz
