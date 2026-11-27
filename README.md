@@ -405,7 +405,7 @@ These are screening proxies for planning and teaching, not official IMD warnings
 | No hard-coded dates or lookup tables in inference code | judge's `monsoon_r1.repo_scan`: anti-cheat 8/8, no flags ([results/repo_scan.json](results/repo_scan.json)) |
 | No past-weather archives in git | presets, climatology and normals are built at runtime from the kit's `data/india_climate_train.nc` into git-ignored `cache/` (`backend/gateway/presets_builder.py` `build()`); `data/` and `cache/` are in `.gitignore`; tracked files listed in [results/tracked_files.txt](results/tracked_files.txt) (only fixed geography: land mask, orography, state raster) |
 | Training code at the repo root | `training/train.py` (`main()`: stage A + stage B, saves `backend/weights/model.pt`), `training/config.yaml`; log summary in [RESULTS.md](RESULTS.md#training-log) |
-| Weights in the repo as plain git files (no LFS), < 2 GB | `backend/weights/model.pt` (2,112,744 bytes), `model.onnx` (2,138,346 bytes), `norm.json`; no `.gitattributes` / LFS |
+| Weights in the repo as plain git files (no LFS), < 2 GB | `backend/weights/model.pt` (2,112,744 bytes), `model.onnx` (2,138,346 bytes), `norm.json`; no Git LFS (`.gitattributes` only marks `*.pt`, `*.onnx`, `*.pdf`, images etc. as binary) |
 | Dashboard separate from the server | `frontend/` (Vite app) → `backend/gateway/app.py` (port 8100) → HTTP → `serve.py`; the gateway never loads the model |
 | Dashboard driven live by `/simulate` | `backend/gateway/app.py` `run_model()` posts every rollout to the inference server; `ensemble.confidence()` calls it 16× |
 | All work created during the hackathon | git history of this repo (first commit to now) |
