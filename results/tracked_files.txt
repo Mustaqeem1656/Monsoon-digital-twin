@@ -36,6 +36,7 @@ backend/weights/README.md
 backend/weights/model.onnx
 backend/weights/model.pt
 backend/weights/norm.json
+brief/brief.pdf
 frontend/README.md
 frontend/blueprint/README-DASHBOARD.md
 frontend/blueprint/build-scripts/build_borders2.py
