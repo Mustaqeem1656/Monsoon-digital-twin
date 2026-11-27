@@ -8,8 +8,8 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 950 } });
 await page.goto(inp.url);
 await page.waitForFunction(() => window.__globe && document.body.innerText.includes('Start state (real data)'), null, { timeout: 60000 });
 await page.getByRole('button', { name: 'Earth', exact: true }).click();
-await page.getByRole('button', { name: new RegExp('^' + inp.preset) }).click();
-await page.waitForFunction(n => document.body.innerText.includes(n) && document.body.innerText.includes('Start state (real data)'), inp.preset, { timeout: 60000 });
+const pick = page.getByRole('button', { name: new RegExp('^' + inp.preset) }), date = (await pick.innerText()).match(/\d{1,2} \w+ \d{4}/)[0]; await pick.click();
+await page.waitForFunction(d => document.body.innerText.includes(d + ' · start') && document.body.innerText.includes('Start state (real data)'), date, { timeout: 60000 });  // wait for the preset's scenario date (its name is no longer shown after picking)
 await page.waitForTimeout(800);
 const out = [];
 for (const [la, lo] of inp.points) {
