@@ -9,8 +9,9 @@ Tested as written on a fresh clone from GitHub, in a new Python 3.12 venv, CPU o
 python -m venv .venv
 source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install numpy scipy xarray netCDF4 fastapi uvicorn "git+https://github.com/OfficialAbhinavSingh/yug-monsoon-kit"
+pip install numpy scipy xarray netCDF4 fastapi uvicorn websockets "git+https://github.com/OfficialAbhinavSingh/yug-monsoon-kit"
 ```
+`websockets` is only for the gateway's `WS /stream` (the dashboard's Run button); `serve.py` does not need it.
 Copy the kit's `india_climate_train.nc` and `stats.json` into `data/` (git-ignored; the grader and the gateway read
 them, `serve.py` does not).
 
@@ -24,7 +25,7 @@ python serve.py --port 8000
 python -m monsoon_r1.schema_validator http://localhost:8000
 python -m backend.eval.local_grader --url http://127.0.0.1:8000
 ```
-Expected (takes a few minutes): the validator ends with `RESULT: all checks passed`. The grader's scorecard shows
+Expected (under a minute each; the grader took 10 s on the laptop): the validator ends with `RESULT: all checks passed`. The grader's scorecard shows
 subtotal 68.1 / 70 and `HARD GATE: PASS`, and its repo-scan block shows points 15.0 / 15 (anti-cheat 8.0 / 8).
 Our full output: [results/local_grader.txt](results/local_grader.txt).
 
