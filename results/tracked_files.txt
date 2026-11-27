@@ -1,6 +1,7 @@
 .gitignore
 CLAUDE.md
 README.md
+RESULTS.md
 backend/__init__.py
 backend/eval/__init__.py
 backend/eval/baselines.py
@@ -69,9 +70,18 @@ frontend/src/engine/globe.js
 frontend/src/engine/shaders.js
 frontend/src/main.jsx
 frontend/src/styles.css
+frontend/src/styles/tokens.css
 frontend/tests/e2e.mjs
 frontend/tests/readout.mjs
 frontend/vite.config.js
+results/local_grader.txt
+results/offline_check.txt
+results/repo_scan.json
+results/schema_validator.txt
+results/tracked_files.txt
+results/training_log_summary.txt
+results/tweaks_ablation.md
+results/verify_data.txt
 serve.py
 training/config.yaml
 training/train.py

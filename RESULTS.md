@@ -1,14 +1,15 @@
 # Results — evidence for the rubric
 
-All outputs below were produced on a **clean clone of `main` at commit `bd86051`**, which is identical to GitHub's
-`main` (`git ls-remote origin main` = bd86051). A direct clone from GitHub stalled twice (timeout during
-`index-pack`), so the clean clone was made from the local repository with `git clone --no-hardlinks -b main`.
-Commits after `bd86051` add only this file and `results/`. Raw outputs are in [results/](results/).
+Each section names the command that produced its numbers; raw outputs are in [results/](results/).
+The local grader and repo scan were run on a clean clone of `main` (commit `6ba2bcb`) in a fresh Python 3.12.10 venv
+with CPU-only torch 2.15 and only the allowed libraries (install commands: README, *For reviewers*). The commits after
+`6ba2bcb` change a test helper (`frontend/tests/readout.mjs`), `.gitignore` and documentation, not the server, model
+or weights.
 
 Machine: Windows 11 laptop, CPU inference only (torch, 4 threads). Judge limits: 6 GB RAM, 4 CPU cores, no GPU, 5 s per call.
 
 ## Local grader (over HTTP, like the judge)
-`python -m backend.eval.local_grader --url http://127.0.0.1:8001` · full output: [results/local_grader.txt](results/local_grader.txt)
+`python -m backend.eval.local_grader --url http://127.0.0.1:<port>` against `python serve.py --port <port>` · full output: [results/local_grader.txt](results/local_grader.txt)
 
 | Part | Score | Detail |
 |---|---|---|
@@ -20,20 +21,21 @@ Machine: Windows 11 laptop, CPU inference only (torch, 4 threads). Judge limits:
 | Hard gate | **PASS** | beats persistence at day 4: True; all outputs valid: True; localized shock: True |
 
 35 windows from the validation years 2019–2021 (15 event windows + 20 random). These years were also used to pick the
-checkpoint, so the scores are slightly optimistic (see README, Failure modes).
+checkpoint, so the scores are slightly optimistic (see README, *Limitations & what we tried*).
 
 ## Schema validator (organisers' kit)
 `python -m monsoon_r1.schema_validator http://localhost:8001` → **all checks passed** (JSON lists and base64; no
 perturbation, warm_ocean, zeros). [results/schema_validator.txt](results/schema_validator.txt)
 
 ## Repo scan (judge's `monsoon_r1.repo_scan` on the clean clone)
+`python -c "from monsoon_r1.repo_scan import scan; print(scan('<clone>'))"` (the local grader also runs it):
 **15 / 15** (anti-cheat 8 / 8, code health 7 / 7), **no flags**. [results/repo_scan.json](results/repo_scan.json)
 
 ## Offline check
 `git grep` over all tracked files for weather APIs / remote data sources (open-meteo, openweathermap, weatherapi,
 visualcrossing, meteomatics, worldweatheronline, cdsapi, ERA5/WeatherBench buckets, accuweather, tomorrow.io) and for
 any non-localhost http(s) URL in code, frontend included: **no matches**. [results/offline_check.txt](results/offline_check.txt).
-Tracked files: [results/tracked_files.txt](results/tracked_files.txt) (77 files; the only arrays are fixed geography).
+Tracked files (`git ls-files`): [results/tracked_files.txt](results/tracked_files.txt) (the only arrays are fixed geography).
 
 ## Data check (`python backend/tools/verify_data.py`)
 **16 / 16 PASS**: dataset = gateway = dashboard readout, map orientation, the forecast comes from serve.py, physical
@@ -42,14 +44,14 @@ units. [results/verify_data.txt](results/verify_data.txt)
 ## Timing and memory
 | What | Measured |
 |---|---|
-| One 10-step `/simulate` call, grader over HTTP | mean 0.53 s, max 0.63 s (laptop also running the gateway); 0.20–0.35 s when idle. Limit 5 s |
+| One 10-step `/simulate` call, grader over HTTP (`time per call` line of the local grader) | 0.11–0.35 s: mean 0.11 s, max 0.15 s in the clean-venv run above; up to 0.35 s while the laptop runs the gateway and dashboard. Limit 5 s |
 | Schema-validator call (its own client incl. encoding) | 2.50–2.65 s |
-| Server memory (serve.py, peak working set during the full grader run) | **598 MB** (limit 6 GB) |
-| Impact ensemble (16 live /simulate calls) | 1.6–1.8 s (limit 5 s), `backend/gateway/test_gateway.py` |
+| Server memory (serve.py, peak working set during a full grader run) | **243 MB** with CPU-only torch (clean venv above); 598 MB with the CUDA build of torch (development venv). Limit 6 GB |
+| Impact ensemble (16 live /simulate calls) | 1.6–2.7 s depending on machine load (limit 5 s), `python -m backend.gateway.test_gateway` |
 
 ## Training log
 From `cache/train.log` (git-ignored; summary in [results/training_log_summary.txt](results/training_log_summary.txt)).
-Code: `training/train.py`, settings: `training/config.yaml`. GPU: RTX 5050 Laptop. Model: 0.52 M parameters, receptive radius 7 cells/day.
+Code: `training/train.py`, settings: `training/config.yaml`. GPU: RTX 5050 Laptop. Model: 0.52 M parameters (520,998), receptive radius 7 cells/day.
 
 | Stage | Rollout length | Epochs | Final train loss (mse, var) | Final val 8-day mse | Best val 8-day mse |
 |---|---|---|---|---|---|

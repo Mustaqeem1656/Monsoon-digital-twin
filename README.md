@@ -1,5 +1,39 @@
 # Monsoon Digital Twin — Track 2 "Multiverse of Monsoon"
 
+## For reviewers (5 minutes)
+
+Tested as written on a fresh clone from GitHub, in a new Python 3.12 venv, CPU only. Run everything from the repo root.
+
+**a. Install** (CPU-only torch; the organisers' `monsoon_r1` kit is needed only for the validator and the local grader)
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install numpy scipy xarray netCDF4 fastapi uvicorn "git+https://github.com/OfficialAbhinavSingh/yug-monsoon-kit"
+```
+Copy the kit's `india_climate_train.nc` and `stats.json` into `data/` (git-ignored; the grader and the gateway read
+them, `serve.py` does not).
+
+**b. Inference server** (terminal 1; `/health` says `"ready"` after about 6 s)
+```bash
+python serve.py --port 8000
+```
+
+**c. Validator and local grader** (terminal 2, same venv)
+```bash
+python -m monsoon_r1.schema_validator http://localhost:8000
+python -m backend.eval.local_grader --url http://127.0.0.1:8000
+```
+Expected (takes a few minutes): the validator ends with `RESULT: all checks passed`. The grader's scorecard shows
+subtotal 68.1 / 70 and `HARD GATE: PASS`, and its repo-scan block shows points 15.0 / 15 (anti-cheat 8.0 / 8).
+Our full output: [results/local_grader.txt](results/local_grader.txt).
+
+**d. Gateway and dashboard** (needs Node.js 18+; keep `serve.py` running)
+```bash
+python -m backend.gateway.app                 # terminal 2: gateway on http://127.0.0.1:8100
+cd frontend && npm ci && npm run dev          # terminal 3: dashboard on http://127.0.0.1:5173
+```
+
 A fast, physics-aware digital twin of India's daily weather, built for Yugaantar DevForge Track 2.
 
 **Brief (2 pages): [brief/brief.pdf](brief/brief.pdf)** · **Evidence: [RESULTS.md](RESULTS.md)** (grader, validator, repo
@@ -13,9 +47,22 @@ scan, data check, timing, training log, ablations) · **Rules: [Rules compliance
 The model works on a 32 × 36 grid of 1° cells (lat 6.5–37.5 °N, lon 65.5–100.5 °E) with 6 daily channels:
 `t2m` (K), `tp` (mm/day), `u10`, `v10` (m/s), `msl` (Pa), `tcwv` (kg/m²). All I/O is in physical units.
 
-## Repo layout
+## Repo map
 
-`serve.py` and `training/` sit at the repo root; everything else the backend needs is under `backend/`, the dashboard under `frontend/`.
+```
+serve.py      inference server the judge runs (/health, /simulate); nothing else
+training/     training code (train.py) and every setting (config.yaml); writes backend/weights/
+backend/      model + runtime, weights (plain git), eval (baselines, local grader), gateway (dashboard backend), tools
+frontend/     3D dashboard (Vite + React + three.js); talks only to the gateway
+results/      raw evidence files behind RESULTS.md
+brief/        2-page brief (PDF)
+README.md     this file
+RESULTS.md    measured results, each with the command that produced it
+CLAUDE.md     working notes for the coding assistant used during the hackathon
+.gitignore    keeps data/, cache/, venvs and node_modules out of git
+```
+
+Key files:
 
 | Path | What it is |
 |---|---|
@@ -48,7 +95,8 @@ python -m monsoon_r1.schema_validator http://localhost:8000  # from the organise
   returns `{"rollout": [N,6,32,36], "inference_ms": ...}`. `steps` can be any positive integer.
 
 Server dependencies are only: torch (CPU) or onnxruntime, numpy, fastapi, uvicorn, and the standard library. It runs on
-CPU with 4 threads, uses about 250 MB of RAM, and writes nothing to disk.
+CPU with 4 threads and writes nothing to disk. Peak memory during a full grader run is 243 MB with the CPU-only torch
+build and 598 MB with the CUDA build of torch (both measured, see [RESULTS.md](RESULTS.md#timing-and-memory)).
 
 ## How to train
 
@@ -60,7 +108,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu128    # we use
 pip install numpy scipy xarray netCDF4 fastapi uvicorn pyyaml requests matplotlib onnx
 pip install <organisers' monsoon_r1 kit>
 # put india_climate_train.nc and stats.json in data/
-python training/train.py                       # full run, about 45 min on an RTX 5050 laptop GPU
+python training/train.py                       # full run, 45.3 min on an RTX 5050 laptop GPU
 python training/train.py --smoke               # 1 epoch per stage, 3 batches: proves the pipeline works
 python backend/tools/export_onnx.py                    # refresh backend/weights/model.onnx after retraining
 ```
@@ -75,7 +123,7 @@ Training runs in two stages, with 2005–2018 used for training and 2019–2021 
 
 The loss is latitude-weighted MSE in normalised units, with heavy-rain cells (> 10 mm/day) upweighted 5×. A spatial
 variance-matching (anti-blur) term is added on top. The best checkpoint, by 8-day validation error, is saved to
-`backend/weights/model.pt`. When training ends, the impulse test, the full local grader and the repo scan run automatically.
+`backend/weights/model.pt` (45.3 min in total on the laptop GPU, from the training log in RESULTS.md). When training ends, the impulse test, the full local grader and the repo scan run automatically.
 
 ## How to evaluate
 
@@ -185,7 +233,7 @@ a rain deficit of 50% or more), solar (share of clear, dry land; the level is so
 River cascade and snowmelt routing are not built, so they are not reported.
 - *Confidence*: `backend/gateway/ensemble.py` nudges the start state with small, smooth, seeded noise and sends every
   member to `/simulate` live: 16 members for the plain forecast, or 8 members run both without and with the change
-  (16 calls; `serve.py` answers one call at a time, so 16 calls is the < 5 s budget, about 1.6 s on the laptop).
+  (16 calls; `serve.py` answers one call at a time, so 16 calls is the < 5 s budget; 1.6–2.7 s on the laptop depending on load, timed by `backend/gateway/test_gateway.py`).
 - *Explanations*: `backend/gateway/explain.py`, fixed sentence templates (no language model). Every number in the text is
   taken from the API response, and `test_gateway` checks this.
 - *Clouds layer*: a **cloud proxy from moisture and rain** (the model has no cloud channel). It combines the moisture
@@ -235,7 +283,7 @@ python backend/tools/verify_data.py  # data-accuracy check: dataset vs gateway v
   - day-of-year sin/cos of the day being predicted
   - latitude and longitude coordinate planes
 - **Architecture**: a 3×3 conv stem, 3 residual blocks (two 3×3 convs each) and a 1×1 head, width 96.
-  **About 523k parameters** (2 MB).
+  **About 521k trainable parameters** (520,998; `sum(p.numel() for p in model.parameters())`, printed by `training/train.py`), 2.1 MB.
 - **Residual rollout**: `next_state = current_state + network(inputs)`, applied day by day on the model's own outputs.
   The head starts at zero, so an untrained model is exactly persistence.
 - **Local by construction**: the receptive field is **7 cells per day** (the judge's speed limit is 8). It uses
@@ -244,7 +292,7 @@ python backend/tools/verify_data.py  # data-accuracy check: dataset vs gateway v
 - **Rain in log space** inside the model, and always ≥ 0 at the output. Temperature is clamped to a valid range, and
   moisture is ≥ 0.
 - **Deterministic**: no dropout or sampling at inference, so a zero perturbation gives bit-identical output.
-- **Speed**: a 10-step rollout over HTTP takes about 0.25 s on CPU (limit 5 s).
+- **Speed**: a 10-step rollout over HTTP takes 0.11–0.35 s on CPU (limit 5 s), timed by `backend/eval/local_grader.py`.
 
 ## How we prevent drift and blur
 
@@ -264,15 +312,16 @@ Each item names the file that does it.
 - **Input noise 0.02 std while training** (`config.yaml` `input_noise`): makes the step robust to its own small errors.
 - **Local operators only**: per-cell LayerNorm (no batch/group norm), receptive field 7 cells/day, so a shock spreads
   at a bounded speed instead of leaking everywhere.
-- **Measured** (see [RESULTS.md](RESULTS.md)): day-8 spatial variance is 40–250 % of the real variance on every
-  channel (anti-blur 10/10), and 10-step rollouts stay finite and in range on every window.
+- **Measured** (local grader, see [RESULTS.md](RESULTS.md)): day-8 spatial variance is 61–98 % of the real variance
+  per channel, inside the judge's 40–250 % band (anti-blur 10/10), and 10-step rollouts stay finite and in range on every window.
 
 ## Results
 
 Full, current evidence is in [RESULTS.md](RESULTS.md) and [results/](results/). The table below is a summary.
 
-Measured with `backend/eval/local_grader.py` over HTTP against `serve.py`, in a fresh Python 3.12 venv with only the allowed
-libraries. Validation years 2019–2021, 35 windows.
+Measured with `python -m backend.eval.local_grader --url http://127.0.0.1:8000` over HTTP against `serve.py`, in a fresh
+Python 3.12 venv with CPU-only torch and only the allowed libraries, on a clean clone of `main`. Validation years
+2019–2021, 35 windows. Full output: [results/local_grader.txt](results/local_grader.txt).
 
 | Part | Estimate | Notes |
 |---|---|---|
@@ -281,9 +330,9 @@ libraries. Validation years 2019–2021, 35 windows.
 | Anti-blur (day-8 spatial variance) | **10.0 / 10** | 61–98 % of the real variance per channel |
 | Shock causality | **13.1 / 15** | both shocks localised and stable; outward spread not always strong enough |
 | Hard gate | **PASS** | beats persistence at day 4, all outputs valid, localised shock response |
-| Repo scan (`monsoon_r1.repo_scan`) | see the latest run | anti-cheat 8 / 8 |
+| Repo scan (`monsoon_r1.repo_scan`, run by the grader) | **15 / 15** | anti-cheat 8 / 8, code health 7 / 7, no flags |
 
-Skill against the better baseline, by lead day:
+Skill against the better baseline, by lead day (range over the 6 channels, `SS` rows of the same grader output):
 
 | Lead | Skill vs better baseline |
 |---|---|
@@ -301,20 +350,32 @@ the same network step inside the same numpy rollout loop.
 `python backend/tools/export_onnx.py --check` in an environment that has onnxruntime. We tested the fallback by starting the
 server with torch blocked; it served correctly and passed the schema validator.
 
-## Failure modes
+## Limitations & what we tried
 
-- **Coarse grid**: 1° cells cannot resolve cyclone cores, orographic rain bands or city-scale heat.
+- **1° grid**: 1° cells cannot resolve cyclone cores, orographic rain bands or city-scale heat.
 - **Daily means**: temperature and the other channels are daily averages, so day–night extremes (e.g. heatwave
   maximum temperatures) are not modelled directly.
 - **Scores measured on 2019–2021**: the same years were used to pick the best checkpoint, so they are slightly
   optimistic. The judge's hidden cases are from later years.
 - **Skill fades with lead time**: beyond about a week, skill is close to climatology.
-- **A 1° grid can't hold a tight cyclone vortex**: placed cyclones are smoothed. The model fills the low over a few
-  days and does not move it; the outcome panel says so.
+- **Stationary cyclones**: a 1° grid can't hold a tight vortex, so placed cyclones are smoothed. The model fills the
+  low over a few days and does not move it along a track; the outcome panel says so.
+- **Fixed 8° event core window**: weather events are cut out within 8 cells of their centre and tapered to zero
+  (`backend/gateway/events.py`). Larger systems are truncated at that radius.
+- **Deterministic model**: one start state gives one forecast (needed for the judge's null-shock check). The
+  confidence shown on the impact tiles comes from an ensemble of 16 live `/simulate` calls with seeded nudges to the
+  start state (`backend/gateway/ensemble.py`), not from the model itself.
 - **Weather events are anomaly templates**: a real event's pattern is moved and scaled. It is not a new physically
   balanced storm, so unrealistic placements (flagged by the warnings) give less reliable results.
 - **Rain extremes are underpredicted**: the model rarely forecasts more than about 50 mm/day in a 1° cell, while real
   events reach 250 mm/day. IMD heavy-rain categories are therefore usually empty in forecasts.
+- **Tried and rejected — fine-tune ablations**: short fine-tunes of the shipped weights (loss and noise variants,
+  checkpoint averaging) only traded forecast skill against causality; none was adopted
+  ([results/tweaks_ablation.md](results/tweaks_ablation.md)).
+- **Tried and rejected — bigdata retrain** (branch `tweaks`, not merged): a from-scratch retrain on more years
+  (1995–2004 and 2022 added to 2005–2018) scored better on the 2019–2020 tune windows, but on held-out 2021 it scored
+  66.99 / 70 against 68.11 for the shipped model, with lower heavy-rain CSI skill (+0.095 vs +0.101) and causality
+  (12.75 vs 13.50). The shipped weights are unchanged.
 
 ## Impact use case
 
@@ -339,12 +400,12 @@ These are screening proxies for planning and teaching, not official IMD warnings
 |---|---|
 | `serve.py` at the repo root, listens on 0.0.0.0 | `serve.py` (`uvicorn.run(app, host="0.0.0.0", ...)`); `/health` + `/simulate` per the kit contract |
 | Allowed libraries only at judging | `serve.py`, `backend/model/runtime.py` import only numpy, torch (CPU) / onnxruntime fallback, fastapi, uvicorn + stdlib |
-| Writes only to /tmp (repo read-only) | `serve.py` and `backend/model/` write no files; weights are only read from `backend/weights/` |
+| Writes only to /tmp (repo read-only) | `serve.py` and `backend/model/runtime.py` open no file for writing; weights are only read from `backend/weights/` (`runtime.py` loader) |
 | Offline, no weather APIs anywhere (frontend included) | `git grep` for open-meteo, openweathermap, weatherapi, cdsapi, ERA5/WeatherBench buckets, etc.: no matches in code ([results/repo_scan.json](results/repo_scan.json), [RESULTS.md](RESULTS.md#offline-check)) |
 | No hard-coded dates or lookup tables in inference code | judge's `monsoon_r1.repo_scan`: anti-cheat 8/8, no flags ([results/repo_scan.json](results/repo_scan.json)) |
-| No past-weather archives in git | presets, climatology and normals are built at runtime from the kit's `data/india_climate_train.nc` into git-ignored `cache/` (`backend/gateway/presets_builder.py`); tracked files listed in [results/tracked_files.txt](results/tracked_files.txt) (only fixed geography: land mask, orography, state raster) |
-| Real training code | `training/train.py`, `training/config.yaml`; log summary in [RESULTS.md](RESULTS.md#training-log) |
-| Weights in the repo as plain git files (no LFS), < 2 GB | `backend/weights/model.pt` (2.1 MB), `model.onnx` (2.1 MB), `norm.json`; no `.gitattributes` / LFS |
+| No past-weather archives in git | presets, climatology and normals are built at runtime from the kit's `data/india_climate_train.nc` into git-ignored `cache/` (`backend/gateway/presets_builder.py` `build()`); `data/` and `cache/` are in `.gitignore`; tracked files listed in [results/tracked_files.txt](results/tracked_files.txt) (only fixed geography: land mask, orography, state raster) |
+| Training code at the repo root | `training/train.py` (`main()`: stage A + stage B, saves `backend/weights/model.pt`), `training/config.yaml`; log summary in [RESULTS.md](RESULTS.md#training-log) |
+| Weights in the repo as plain git files (no LFS), < 2 GB | `backend/weights/model.pt` (2,112,744 bytes), `model.onnx` (2,138,346 bytes), `norm.json`; no `.gitattributes` / LFS |
 | Dashboard separate from the server | `frontend/` (Vite app) → `backend/gateway/app.py` (port 8100) → HTTP → `serve.py`; the gateway never loads the model |
 | Dashboard driven live by `/simulate` | `backend/gateway/app.py` `run_model()` posts every rollout to the inference server; `ensemble.confidence()` calls it 16× |
 | All work created during the hackathon | git history of this repo (first commit to now) |
